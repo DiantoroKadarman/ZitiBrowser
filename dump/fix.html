@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>new browser</title>
+    <!-- Memuat Tailwind CSS untuk styling modern -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* CSS Kustom */
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          "Noto Sans",
+          sans-serif,
+          "Apple Color Emoji",
+          "Segoe UI Emoji",
+          "Segoe UI Symbol",
+          "Noto Color Emoji";
+        background-color: #f0f0f0; /* Latar belakang aplikasi terang */
+        color: #333333;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Menyembunyikan Scrollbar */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      /* Styling Tab Container (yang bertindak sebagai Sidebar di Arc) */
+      #tabs-container {
+        /* Mengatur agar tabs-container menjadi sidebar vertikal */
+        display: flex;
+        flex-direction: column;
+        width: 16rem; /* Lebar default sidebar */
+        background-color: #ffffff; /* Warna sidebar */
+        border-right: 1px solid #e5e7eb;
+        padding: 1rem;
+        box-sizing: border-box;
+        overflow-y: auto;
+        /* Tambahkan transisi jika nanti ada fungsi collapse */
+        transition: width 0.3s ease-in-out;
+        flex-shrink: 0;
+      }
+
+      /* Container utama untuk webview */
+      #main-content-wrapper {
+        display: flex;
+        flex-grow: 1;
+        overflow: hidden;
+      }
+
+      /* Webview mengisi sisa ruang */
+      #webview {
+        flex-grow: 1;
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      /* Address Bar Styling */
+      #url-input {
+        flex-grow: 1;
+        border: none;
+        background: transparent;
+        outline: none;
+        padding: 0 1rem;
+        height: 100%;
+        font-size: 0.875rem; /* text-sm */
+        color: #333333;
+        border-radius: 9999px; /* rounded-full */
+      }
+
+      /* Tombol Navigasi */
+      #button-container button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 9999px;
+        background-color: #e5e7eb; /* bg-gray-200 */
+        color: #4b5563; /* text-gray-700 */
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.15s;
+        font-size: 1rem;
+        outline: none;
+      }
+
+      #button-container button:hover {
+        background-color: #d1d5db; /* hover:bg-gray-300 */
+      }
+
+      /* Menyembunyikan ikon img yang tidak valid */
+      #new-window-button img {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Header (ID: browser-tools) -->
+    <div
+      id="browser-tools"
+      class="h-12 bg-white flex items-center px-4 border-b border-gray-300"
+      style="
+        display: flex;
+        width: 100%;
+        height: 3rem;
+        background-color: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 0 1rem;
+      "
+    >
+      <!-- Kontainer Tombol Navigasi (ID: button-container) -->
+      <div
+        id="button-container"
+        class="flex items-center space-x-2"
+        style="display: flex; align-items: center; gap: 0.5rem"
+      >
+        <!-- Back Button (ID: back-button) -->
+        <button id="back-button">&larr;</button>
+        <!-- Forward Button (ID: forward-button) -->
+        <button id="forward-button">&rarr;</button>
+        <!-- Reload Button (ID: reload-button) -->
+        <button id="reload-button">&#x21bb;</button>
+        <!-- Search Button (ID: search-button) -->
+        <button id="search-button">&#128270;</button>
+        <!-- New Window Button (ID: new-window-button) -->
+        <button id="new-window-button" style="padding: 0 0.5rem">
+          <!-- Ikon Plus (menggantikan img src yang tidak ada) -->
+          +
+        </button>
+        <!-- New Tab Button (ID: new-tab-button) -->
+        <button id="new-tab-button">+</button>
+      </div>
+
+      <!-- Address Bar (URL Input) -->
+      <form
+        style="
+          flex-grow: 1;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          margin: 0 1rem;
+        "
+      >
+        <div
+          class="bg-gray-100 h-8 rounded-full flex items-center justify-start border border-gray-300"
+          style="
+            background-color: #f3f4f6;
+            height: 2rem;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            width: 50%;
+            max-width: 600px;
+          "
+        >
+          <input
+            id="url-input"
+            required
+            class="w-full h-full"
+            placeholder="URL atau pencarian"
+          />
+        </div>
+      </form>
+
+      <!-- Go Button (ID: go) - Disembunyikan, biasanya Form Submit sudah cukup -->
+      <button id="go" class="hidden">go</button>
+    </div>
+
+    <!-- Konten Utama (Sidebar + Webview) -->
+    <div id="main-content-wrapper">
+      <!-- Sidebar / Tabs Container (ID: tabs-container) -->
+      <div
+        id="tabs-container"
+        class="no-scrollbar"
+        style="
+          display: flex;
+          flex-direction: column;
+          flex-shrink: 0;
+          width: 16rem;
+          background-color: #ffffff;
+          border-right: 1px solid #e5e7eb;
+          padding: 1rem;
+          box-sizing: border-box;
+        "
+      >
+        <!-- Di sini seharusnya elemen Tab dirender oleh renderer.js -->
+        <div class="text-xs font-semibold uppercase text-gray-500 mb-2">
+          Tabs (Dummy)
+        </div>
+        <div class="tab active bg-gray-200">
+          <span class="text-sm">Tab Awal</span>
+        </div>
+      </div>
+
+      <!-- Webview Area -->
+      <webview id="webview" src="" style="width: 100%; height: 100%"></webview>
+    </div>
+
+    <script type="module" src="/src/renderer.js"></script>
+  </body>
+</html>

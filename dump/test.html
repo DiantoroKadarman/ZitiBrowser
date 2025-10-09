@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>new browser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          "Noto Sans",
+          sans-serif,
+          "Apple Color Emoji",
+          "Segoe UI Emoji",
+          "Segoe UI Symbol",
+          "Noto Color Emoji";
+        background-color: #f0f0f0;
+        color: #333333;
+      }
+
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      .sidebar {
+        width: 16rem; /* Tailwind w-64 */
+        transition: width 0.3s ease-in-out;
+      }
+
+      .sidebar.collapsed {
+        width: 4rem; /* Tailwind w-16 */
+      }
+
+      /* Memastikan iframe mengisi penuh area konten */
+      #webview {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+    </style>
+  </head>
+
+  <body class="flex flex-col h-screen overflow-hidden m-0 p-0">
+    <!-- Header -->
+    <header
+      id="browser-tools"
+      class="h-12 bg-white flex items-center px-4 border-b border-gray-300"
+    >
+      <div class="flex items-center space-x-2">
+        <button
+          id="back-button"
+          class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+        >
+          <!-- Back Arrow Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+            stroke="currentColor"
+            class="w-4 h-4"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15.75 19.5L8.25 12l7.5-7.5"
+            />
+          </svg>
+        </button>
+
+        <button
+          id="forward-button"
+          class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+        >
+          <!-- Forward Arrow Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+            stroke="currentColor"
+            class="w-4 h-4"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8.25 4.5l7.5 7.5-7.5 7.5"
+            />
+          </svg>
+        </button>
+
+        <button
+          id="reload-button"
+          class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+        >
+          <!-- Reload Icon -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="2"
+            stroke="currentColor"
+            class="w-4 h-4"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+            />
+          </svg>
+        </button>
+
+        <button
+          id="search-button"
+          class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+        >
+          <!-- Search Icon (Home button removed, replaced by Search for better logic integration) -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.5"
+            stroke="currentColor"
+            class="w-4 h-4"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-grow flex justify-center items-center">
+        <!-- URL INPUT -->
+        <div
+          class="bg-gray-100 w-1/2 h-8 rounded-full flex items-center justify-start px-4 text-gray-600 border border-gray-300 text-sm"
+        >
+          <form id="url-form" class="w-full h-full flex items-center">
+            <input
+              required
+              type="text"
+              id="url-input"
+              placeholder="URL atau pencarian"
+              class="w-full h-full bg-transparent border-none focus:outline-none text-left placeholder-gray-400 text-gray-700"
+            />
+            <!-- Tombol Go Button (Tersembunyi) diperlukan oleh renderer.js -->
+            <button type="submit" id="go-button" class="hidden">Go</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2">
+        <!-- Color Picker -->
+        <div class="flex items-center space-x-2">
+          <label
+            for="color-picker"
+            class="text-xs text-gray-500 hidden sm:block"
+            >Theme</label
+          >
+          <input
+            type="color"
+            id="color-picker"
+            value="#f0f0f0"
+            class="w-6 h-6 p-0 border-none cursor-pointer rounded-md overflow-hidden"
+          />
+        </div>
+
+        <!-- Identity / New Window Button -->
+        <button
+          id="new-window-button"
+          class="w-auto h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 px-4 border border-gray-300 hover:bg-gray-300 transition-colors duration-200"
+        >
+          <span>Nama Identity</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="flex flex-grow overflow-hidden">
+      <!------------------------------- SIDEBAR ---------------------------- -->
+      <aside
+        id="sidebar"
+        class="sidebar w-64 bg-white flex flex-col p-4 border-r border-gray-300 z-10"
+      >
+        <!-- Top Section with Collapse Button -->
+        <div class="flex justify-end mb-4">
+          <button
+            id="collapse-btn"
+            class="flex items-center justify-center w-6 h-6 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none transition-transform duration-300 transform"
+          >
+            <!-- Collapse Icon -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-4 h-4"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15.75 19.5L8.25 12l7.5-7.5"
+              />
+            </svg>
+          </button>
+        </div>
+        <!-- Scrollable Sidebar Content -->
+        <div
+          id="sidebar-content"
+          class="flex-grow no-scrollbar overflow-y-auto space-y-2"
+        >
+          <!-- Pinned Tabs Section Header -->
+          <div class="text-xs font-semibold text-gray-600 uppercase">TABS</div>
+
+          <!-- Dynamic Tabs Container (Diisi oleh renderer.js) -->
+          <div id="tabs-container" class="space-y-1">
+            <!-- Tab elemen akan dirender di sini -->
+          </div>
+
+          <!-- New Tab Button -->
+          <div class="text-xs font-semibold text-gray-600 uppercase pt-4">
+            New Tab
+          </div>
+          <a
+            href="#"
+            id="new-tab-button"
+            class="flex items-center p-2 rounded-md hover:bg-gray-200 transition-colors duration-200 space-x-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-gray-500"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+            <span class="text-sm">Add New Tab</span>
+          </a>
+        </div>
+      </aside>
+
+      <!-- Content Area -->
+      <main id="main-content" class="main-content flex-grow bg-[#f0f0f0]">
+        <!-- Menggunakan iframe dengan ID webview agar logika JS kamu berfungsi -->
+        <webview
+          id="webview"
+          src=""
+          style="width: 100%; height: 100%"
+        ></webview>
+      </main>
+    </div>
+
+    <!-- Script Inline untuk Collapse Sidebar (tetap di sini agar berjalan cepat) -->
+    <script>
+      const sidebar = document.getElementById("sidebar");
+      const sidebarContent = document.getElementById("sidebar-content");
+      const collapseBtn = document.getElementById("collapse-btn");
+
+      collapseBtn.addEventListener("click", () => {
+        const isCollapsed = sidebar.classList.toggle("collapsed");
+        collapseBtn.classList.toggle("rotate-180");
+
+        // Sembunyikan konten dengan delay jika collapse
+        if (isCollapsed) {
+          setTimeout(() => {
+            sidebarContent.classList.add("hidden");
+          }, 250);
+        } else {
+          // Tampilkan segera jika diperluas
+          sidebarContent.classList.remove("hidden");
+        }
+      });
+    </script>
+
+    <!-- Script Module untuk Logika Browser (Di sini logika renderer.js dimuat) -->
+    <script type="module" src="/src/renderer.js"></script>
+  </body>
+</html>
