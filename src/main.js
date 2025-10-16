@@ -12,7 +12,6 @@ if (started) {
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "8080";
 // Aturan proxy diarahkan ke port 8080 (Ziti Proxy Server)
-// Menggunakan http saja sesuai contoh, tapi disarankan HTTPS juga.
 const ZITI_PROXY_ADDRESS = `http=${PROXY_HOST}:${PROXY_PORT}`;
 
 // 2. Konfigurasi Ziti Identity API (Port 8081)
@@ -79,13 +78,13 @@ const createWindow = () => {
   mainWindow.webContents.session
     .setProxy({ proxyRules: ZITI_PROXY_ADDRESS })
     .then(() => {
-      console.log(`✅ Main Window Proxy set to: ${ZITI_PROXY_ADDRESS}`);
+      console.log(`Main Window Proxy set to: ${ZITI_PROXY_ADDRESS}`);
     })
     .catch((error) => {
       console.error(`❌ Failed to set proxy: ${error}`);
     });
 
-  // and load the index.html of the app.
+  // load the index.html of the app.
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     } else {

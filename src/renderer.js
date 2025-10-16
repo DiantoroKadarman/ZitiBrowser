@@ -10,77 +10,120 @@ const goButton = document.getElementById("go");
 const urlInputField = document.getElementById("url-input");
 const webview = document.getElementById("webview");
 const tabsContainer = document.getElementById("tabs-container");
+const serviceTabsContainer = document.getElementById("service-tabs-container"); // REFERENSI SERVICE TABS
 
 // --- REFERENSI ELEMEN BARU (Identity & Sidebar) ---
 const identityButton = document.getElementById("identity-button");
+const identityModal = document.getElementById("identity-modal"); // Ambil elemen modal
+const identityDetailsContent = document.getElementById(
+  "identity-details-content"
+); // Ambil elemen tempat konten detail
+const closeModalButton = document.getElementById("close-modal-button"); // Ambil tombol tutup
+
 const sidebar = document.getElementById("sidebar");
 const sidebarContent = document.getElementById("sidebar-content");
 const collapseBtn = document.getElementById("collapse-btn");
 
 let tabs = [];
 let currentTabIndex = 0;
+let zitiIdentity = null; // Variabel global untuk menyimpan data Ziti
 
-// --- FUNGSI BARU: FETCH DATA ZITI VIA IPC ---
+function loadZitiServiceUrl(serviceName) {
+  const serviceUrl = `http://${serviceName}`;
+  console.log(`[Ziti] Loading service URL: ${serviceUrl}`);
+  tabs[currentTabIndex].url = serviceUrl;
+  urlInputField.value = serviceUrl;
+  webview.src = serviceUrl;
+}
+// Ekspor fungsi ke konteks global agar dapat diakses dari HTML
+window.loadZitiServiceUrl = loadZitiServiceUrl;
 
-async function fetchAndDisplayIdentityData() {
-  console.log("[Ziti] Requesting Identity data via IPC...");
-
-  // Memberi nama URL unik saat menampilkan status
-  const IDENTITY_STATUS_URL = "ziti-identity-status://";
-
+// Fungsi untuk mengambil data Identity Ziti melalui IPC (LOGIKA FETCH + ERROR HANDLING)
+async function fetchIdentityData() {
   try {
-    // PANGGILAN IPC KE MAIN PROCESS: Minta data dari API 8081
-    // window.electronAPI.getZitiIdentityData() didefinisikan di preload.js
+    console.log("[Ziti] Requesting Identity data via IPC...");
     const identity = await window.electronAPI.getZitiIdentityData();
-
+    zitiIdentity = identity; // Simpan data ke variabel global
     console.log("✅ Identity Data Received:", identity);
+    return identity;
+  } catch (error) {
+    // LOGIKA DISPLAY ERROR LANGSUNG DI SINI
+    console.error("Failed to fetch Ziti Identity Data via IPC:", error.message);
 
-    // --- Generate HTML untuk Tampilan Sukses ---
-    const servicesList = identity.services
-      ? identity.services
-          .map(
-            (s) =>
-              `<li style="list-style-type: disc; margin-left: 20px;">${s}</li>`
-          )
-          .join("")
-      : "<li>No services found for this identity.</li>";
+    const errorHtml = `<div style="padding: 20px; font-family: Arial, sans-serif; color: #cc0000;">
+        <h1> Gagal Mengambil Data Ziti API</h1>
+        <p>Periksa koneksi ke API Server (Port 8081).</p>
+        <p>Detail Error:</p>
+        <pre style="background: #fee; padding: 10px; border: 1px solid #f99; white-space: pre-wrap;">
+          ${error.message}
+        </pre>
+      </div>`;
 
-    const htmlContent = `
-            <div style="padding: 20px; font-family: Arial, sans-serif;">
-                <h1 style="color: #2E86C1;">Ziti Identity Status</h1>
-                <p>Status: <span style="color: green; font-weight: bold;">Terhubung dan Data Diterima</span></p>
-                <h2 style="margin-top: 20px;">Identity Details</h2>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                    <tr><td style="padding: 8px; border: 1px solid #ddd; width: 30%;">Name</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${identity.identity_name}</td></tr>
-                    <tr><td style="padding: 8px; border: 1px solid #ddd;">ID</td><td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${identity.identity_id}</td></tr>
-                </table>
-                <h2 style="margin-top: 20px;">Available Services</h2>
-                <ul style="padding: 0;">${servicesList}</ul>
-            </div>
-        `;
-
-    // Memuat konten ke webview
-    webview.src = `data:text/html,${encodeURIComponent(htmlContent)}`;
-    urlInputField.value = IDENTITY_STATUS_URL;
-  } catch (error) { 
-    console.error(
-      "❌ Failed to fetch Ziti Identity Data via IPC:",
-      error.message
-    );
-
-    // --- Generate HTML untuk Tampilan Gagal ---
-    const errorHtml = `
-            <div style="padding: 20px; font-family: Arial, sans-serif; color: #cc0000;">
-                <h1>❌ Gagal Mengambil Data Ziti API</h1>
-                <p>Periksa koneksi ke API Server (Port 8081).</p>
-                <p>Detail Error:</p>
-                <pre style="background: #fee; padding: 10px; border: 1px solid #f99; white-space: pre-wrap;">${error.message}</pre>
-            </div>
-        `;
-    // Memuat error HTML ke webview
     webview.src = `data:text/html,${encodeURIComponent(errorHtml)}`;
     urlInputField.value = "ziti-identity-error://";
+
+    // Bersihkan serviceTabsContainer saat error
+    if (serviceTabsContainer) {
+      serviceTabsContainer.innerHTML = `<p class="text-red-500 p-3">Gagal memuat layanan. Periksa status dan koneksi Ziti.</p>`;
+    }
+    // Lemparkan error lagi agar orchestrator tahu fetch gagal
+    throw error;
   }
+}
+
+// Fungsi untuk merender Tombol Layanan di SERVICE TABS CONTAINER (Gabungan displayServices dan generateServiceButtonsHTML)
+function renderZitiServices(identity) {
+  const services = identity?.services;
+
+  if (!services || services.length === 0) {
+    if (serviceTabsContainer) {
+      serviceTabsContainer.innerHTML =
+        "<p style='color: #666; padding: 10px;'>Tidak ada layanan Ziti yang tersedia.</p>";
+    }
+    return;
+  }
+
+  const serviceButtonsHTML = services
+    .map((service) => {
+      // Hati-hati dengan tanda kutip di nama layanan saat dimasukkan ke onclick
+      const serviceName = service.replace(/'/g, "\\'");
+
+      return `
+            <button 
+                type="button" 
+                class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab relative hover:bg-gray-300"
+                onclick="loadZitiServiceUrl('${serviceName}')"
+                title="Akses layanan: http://${service}"
+            >
+                <span class='text-s'>${service}</span>
+            </button>
+        `;
+    })
+    .join("");
+
+  if (serviceTabsContainer) {
+    serviceTabsContainer.innerHTML = serviceButtonsHTML;
+  }
+}
+
+
+async function displayIdentityData() {
+  if (!identityModal || !identityDetailsContent) {
+    console.error("Modal elements not found in DOM.");
+    return;
+  }
+  const identity = await fetchIdentityData();
+  const textHtml = `
+      <div id="ziti-status-popup" class="p-0" style="font-family: Arial, sans-serif;">
+        <h3 class="font-bold text-gray-800 uppercase mb-3 text-lg border-b pb-2">IDENTITY DETAILS</h3>
+        <p class="truncate mb-1"><span class="font-semibold text-gray-600">NAME :</span> ${identity.identity_name}</p>
+        <p class="truncate"><span class="font-semibold text-gray-600">ID :</span> ${identity.identity_id}</p>
+      </div>
+    `;
+
+  identityDetailsContent.innerHTML = textHtml;
+  identityModal.classList.remove("hidden");
+  identityModal.classList.add("flex");
 }
 
 function handleUrl() {
@@ -95,7 +138,81 @@ function handleUrl() {
   tabs[currentTabIndex].url = url;
 }
 
-// --- EVENT LISTENERS (Existing) ---
+function renderTabs() {
+  tabsContainer.innerHTML = "";
+  if (tabs.length === 0) {
+    tabs.push({ title: "Tab 1", url: "https://google.com" });
+    currentTabIndex = 0;
+  }
+  tabs.forEach((tab, index) => {
+    const tabButton = document.createElement("button");
+    tabButton.type = "button";
+    tabButton.className = `flex items-center w-default p-2 rounded-md transition-colors duration-200 space-x-2 tab relative ${
+      index === currentTabIndex ? "bg-gray-200 active" : "hover:bg-gray-300"
+    }`;
+    tabButton.innerHTML = `<span class='text-sm'>${tab.title}</span>`;
+    tabButton.addEventListener("click", () => switchToTab(index));
+
+    // Tombol hapus tab (tanda silang)
+    if (tabs.length > 1) {
+      const closeBtn = document.createElement("span");
+      closeBtn.innerHTML = "&times;";
+      closeBtn.className =
+        "close-btn ml-2 text-gray-400 hover:text-red-500 cursor-pointer";
+      closeBtn.style.transition = "opacity 0.2s";
+      closeBtn.title = "Tutup Tab";
+      closeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeTab(index);
+      });
+      tabButton.appendChild(closeBtn);
+      tabButton.classList.add("group");
+      tabButton.addEventListener("mouseenter", () => {
+        closeBtn.style.opacity = "1";
+      });
+      tabButton.addEventListener("mouseleave", () => {
+        closeBtn.style.opacity = "0";
+      });
+    }
+    tabsContainer.appendChild(tabButton);
+  });
+
+  // Panggil renderZitiServices di sini untuk memastikan layanan selalu ter-render
+  if (zitiIdentity) {
+    renderZitiServices(zitiIdentity);
+  } else {
+    // Tampilkan status loading awal atau kosong
+    if (serviceTabsContainer) {
+      serviceTabsContainer.innerHTML = `<p style='color: #666; padding: 10px;'>Memuat layanan...</p>`;
+    }
+  }
+}
+
+function removeTab(index) {
+  tabs.splice(index, 1);
+  if (currentTabIndex >= tabs.length) {
+    currentTabIndex = tabs.length - 1;
+  }
+  renderTabs();
+  if (tabs.length > 0) {
+    switchToTab(currentTabIndex);
+  } else {
+    tabs.push({ title: "Tab 1", url: "https://google.com" });
+    currentTabIndex = 0;
+    renderTabs();
+    switchToTab(0);
+  }
+}
+
+function switchToTab(index) {
+  currentTabIndex = index;
+  const tab = tabs[index];
+  urlInputField.value = tab.url;
+  webview.src = tab.url;
+  renderTabs();
+}
+
+// --- EVENT LISTENER & STARTUP CALL ---
 urlInputField.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -140,7 +257,6 @@ webview.addEventListener("did-navigate", (event) => {
   tabs[currentTabIndex].url = url;
 });
 
-// New Tab Functionality
 newTabButton.addEventListener("click", () => {
   const tab = {
     title: `Tab ${tabs.length + 1}`,
@@ -151,76 +267,26 @@ newTabButton.addEventListener("click", () => {
   switchToTab(tabs.length - 1);
 });
 
-// Render Tabs
-function renderTabs() {
-  tabsContainer.innerHTML = "";
-  if (tabs.length === 0) {
-    tabs.push({ title: "Tab 1", url: "https://google.com" });
-    currentTabIndex = 0;
-  }
-  tabs.forEach((tab, index) => {
-    const tabButton = document.createElement("button");
-    tabButton.type = "button";
-    tabButton.className = `flex items-center w-default p-2 rounded-md transition-colors duration-200 space-x-2 tab relative ${index === currentTabIndex ? "bg-gray-200 active" : "hover:bg-gray-300"}`;
-    tabButton.innerHTML = `<span class='text-sm'>${tab.title}</span>`;
-    tabButton.addEventListener("click", () => switchToTab(index));
+if (identityButton) {
+  identityButton.addEventListener("click", displayIdentityData);
+}
 
-    // Tombol hapus tab (tanda silang)
-    if (tabs.length > 1) {
-      const closeBtn = document.createElement("span");
-      closeBtn.innerHTML = "&times;";
-      closeBtn.className =
-        "close-btn ml-2 text-gray-400 hover:text-red-500 cursor-pointer";
-      closeBtn.style.transition = "opacity 0.2s";
-      closeBtn.title = "Tutup Tab";
-      closeBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        removeTab(index);
-      });
-      tabButton.appendChild(closeBtn);
-      tabButton.classList.add("group");
-      tabButton.addEventListener("mouseenter", () => {
-        closeBtn.style.opacity = "1";
-      });
-      tabButton.addEventListener("mouseleave", () => {
-        closeBtn.style.opacity = "0";
-      });
-    }
-    tabsContainer.appendChild(tabButton);
+// LOGIKA MODAL IDENTITY
+if (closeModalButton && identityModal) {
+  closeModalButton.addEventListener("click", () => {
+    identityModal.classList.add("hidden"); // Sembunyikan modal
+    identityModal.classList.remove("flex"); // Hapus flex untuk memastikan tersembunyi
   });
 }
 
-function removeTab(index) {
-  tabs.splice(index, 1);
-  if (currentTabIndex >= tabs.length) {
-    currentTabIndex = tabs.length - 1;
-  }
-  renderTabs();
-  if (tabs.length > 0) {
-    switchToTab(currentTabIndex);
-  } else {
-    tabs.push({ title: "Tab 1", url: "https://google.com" });
-    currentTabIndex = 0;
-    renderTabs();
-    switchToTab(0);
-  }
-}
-
-// Switch Tabs
-function switchToTab(index) {
-  currentTabIndex = index;
-  const tab = tabs[index];
-  urlInputField.value = tab.url;
-  webview.src = tab.url;
-  renderTabs();
-}
-
-// Inisialisasi tampilan tab awal
-renderTabs();
-
-// --- EVENT LISTENER BARU (Ziti Identity Button) ---
-if (identityButton) {
-  identityButton.addEventListener("click", fetchAndDisplayIdentityData);
+if (identityModal) {
+  identityModal.addEventListener("click", (e) => {
+    // Cek apakah yang diklik adalah elemen modal itu sendiri (bukan konten di dalamnya)
+    if (e.target === identityModal) {
+      identityModal.classList.add("hidden");
+      identityModal.classList.remove("flex");
+    }
+  });
 }
 
 if (sidebar && collapseBtn) {
@@ -246,3 +312,17 @@ if (sidebar && collapseBtn) {
     }
   });
 }
+
+async function init() {
+  try {
+    // Ini akan memanggil fetchIdentityData, yang akan mengisi zitiIdentity global
+    await fetchIdentityData();
+  } catch (e) {
+    console.log(
+      "Initial Ziti service fetch failed, continuing startup without identity data."
+    );
+  }
+  renderTabs();
+}
+
+init();

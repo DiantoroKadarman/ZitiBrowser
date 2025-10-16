@@ -1,1 +1,126 @@
-/* wlee */
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    sans-serif,
+    "Apple Color Emoji",
+    "Segoe UI Emoji",
+    "Segoe UI Symbol",
+    "Noto Color Emoji";
+  background-color: #f0f0f0; /* Latar belakang aplikasi terang */
+  color: #333333;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar collapsed */
+.sidebar {
+  width: 16rem;
+  transition: width 0.3s ease-in-out;
+}
+.sidebar.collapsed {
+  width: 4rem;
+}
+
+#tabs-container.collapsed {
+  width: 2rem !important;
+  padding: 0.25rem !important;
+}
+
+/* Menyembunyikan Scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Styling Tab Container (yang bertindak sebagai Sidebar) */
+#tabs-container {
+  display: flex;
+  flex-direction: column;
+  width: 16rem; /* Lebar default sidebar */
+  background-color: #ffffff; /* Warna sidebar */
+  border-right: 1px solid #e5e7eb;
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow-y: auto;
+  /* Tambahkan transisi jika nanti ada fungsi collapse */
+  transition: width 0.3s ease-in-out;
+  flex-shrink: 0;
+}
+
+/* Container utama untuk webview */
+#main-content-wrapper {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+/* Webview mengisi sisa ruang */
+#webview {
+  flex-grow: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Address Bar Styling */
+#url-input {
+  flex-grow: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 0 1rem;
+  height: 100%;
+  font-size: 0.875rem; /* text-sm */
+  color: #333333;
+  border-radius: 9999px; /* rounded-full */
+}
+
+/* Tombol Navigasi */
+#button-container button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  background-color: #e5e7eb; /* bg-gray-200 */
+  color: #4b5563; /* text-gray-700 */
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+  font-size: 1rem;
+  outline: none;
+}
+
+#button-container button:hover {
+  background-color: #d1d5db; /* hover:bg-gray-300 */
+}
+
+/* Tombol X pada tab sidebar */
+.tab .close-btn {
+  opacity: 0;
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.2s;
+}
+.tab.group:hover .close-btn {
+  opacity: 1;
+}

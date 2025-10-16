@@ -6,136 +6,6 @@
     <title>new browser</title>
     <!-- Memuat Tailwind CSS untuk styling modern -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* CSS Kustom */
-      body {
-        font-family:
-          ui-sans-serif,
-          system-ui,
-          -apple-system,
-          BlinkMacSystemFont,
-          "Segoe UI",
-          Roboto,
-          "Helvetica Neue",
-          Arial,
-          "Noto Sans",
-          sans-serif,
-          "Apple Color Emoji",
-          "Segoe UI Emoji",
-          "Segoe UI Symbol",
-          "Noto Color Emoji";
-        background-color: #f0f0f0; /* Latar belakang aplikasi terang */
-        color: #333333;
-        margin: 0;
-        padding: 0;
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        overflow: hidden;
-      }
-
-      /* Sidebar collapsed */
-      .sidebar {
-        width: 16rem;
-        transition: width 0.3s ease-in-out;
-      }
-      .sidebar.collapsed {
-        width: 4rem;
-      }
-
-      #tabs-container.collapsed {
-        width: 2rem !important;
-        padding: 0.25rem !important;
-      }
-
-      /* Menyembunyikan Scrollbar */
-      .no-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-
-      .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-
-      /* Styling Tab Container (yang bertindak sebagai Sidebar di Arc) */
-      #tabs-container {
-        /* Mengatur agar tabs-container menjadi sidebar vertikal */
-        display: flex;
-        flex-direction: column;
-        width: 16rem; /* Lebar default sidebar */
-        background-color: #ffffff; /* Warna sidebar */
-        border-right: 1px solid #e5e7eb;
-        padding: 1rem;
-        box-sizing: border-box;
-        overflow-y: auto;
-        /* Tambahkan transisi jika nanti ada fungsi collapse */
-        transition: width 0.3s ease-in-out;
-        flex-shrink: 0;
-      }
-
-      /* Container utama untuk webview */
-      #main-content-wrapper {
-        display: flex;
-        flex-grow: 1;
-        overflow: hidden;
-      }
-
-      /* Webview mengisi sisa ruang */
-      #webview {
-        flex-grow: 1;
-        width: 100%;
-        height: 100%;
-        border: none;
-      }
-
-      /* Address Bar Styling */
-      #url-input {
-        flex-grow: 1;
-        border: none;
-        background: transparent;
-        outline: none;
-        padding: 0 1rem;
-        height: 100%;
-        font-size: 0.875rem; /* text-sm */
-        color: #333333;
-        border-radius: 9999px; /* rounded-full */
-      }
-
-      /* Tombol Navigasi */
-      #button-container button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 2rem;
-        height: 2rem;
-        border-radius: 9999px;
-        background-color: #e5e7eb; /* bg-gray-200 */
-        color: #4b5563; /* text-gray-700 */
-        border: none;
-        cursor: pointer;
-        transition: background-color 0.15s;
-        font-size: 1rem;
-        outline: none;
-      }
-
-      #button-container button:hover {
-        background-color: #d1d5db; /* hover:bg-gray-300 */
-      }
-
-      /* Tombol X pada tab sidebar */
-      .tab .close-btn {
-        opacity: 0;
-        position: absolute;
-        right: 0.75rem;
-        top: 50%;
-        transform: translateY(-50%);
-        transition: opacity 0.2s;
-      }
-      .tab.group:hover .close-btn {
-        opacity: 1;
-      }
-    </style>
   </head>
 
   <body>
@@ -274,15 +144,14 @@
         </div>
       </form>
 
-      <!-- **NEW: Tombol Identity dan Tombol Go (Diposisikan di kanan Address Bar)** -->
-      <div class="flex items-center space-x-2">
-        <!-- Identity Button -->
+      <!-- Identity Button -->
+      <!-- <div class="flex items-center space-x-2">
         <button
           id="identity-button"
           class="flex items-center justify-center w-8 h-8 rounded-full text-blue-700 bg-blue-200 hover:bg-blue-300 focus:outline-none"
           title="Show Ziti Identities"
         >
-          <!-- User Icon (representing Identity) -->
+          User Icon (representing Identity) 
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -296,12 +165,48 @@
             />
           </svg>
         </button>
-        <!-- hidden -->
-        <button id="go" class="hidden">go</button>
-      </div>
-    </div>
+      </div> -->
 
-      <!-- hidden -->
+      
+      <!-- BARUUUU -->
+      <div class="flex items-center space-x-2">
+        <button
+          id="identity-button"
+          class="flex items-center justify-center w-8 h-8 rounded-full text-blue-700 bg-blue-200 hover:bg-blue-300 focus:outline-none"
+          title="Show Ziti Identities"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            class="w-5 h-5"
+          >
+            <path
+              fill-rule="evenodd"
+              d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.73 0-5.45-.608-7.962-1.7a.75.75 0 01-.438-.695z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div
+        id="identity-modal"
+        class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50"
+      >
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+          <div id="identity-details-content"></div>
+          <div class="mt-4 flex justify-end">
+            <button
+              id="close-modal-button"
+              class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+
       <button id="go" class="hidden">go</button>
     </div>
 
@@ -348,12 +253,8 @@
           </div>
 
           <!-- Dynamic Tabs Container (Diisi oleh renderer.js) -->
-          <!-- Menghilangkan padding horizontal di sini karena sudah ada di item tab -->
-          <div id="tabs-container" class="space-y-1">
-            <!-- Tab akan dirender oleh renderer.js sebagai button. Gunakan kelas 'p-2' di renderer.js -->
-          </div>
+          <div id="tabs-container" class="space-y-1"></div>
 
-          <!-- New Tab Button - Menggunakan PX-2 yang sama seperti item tab -->
           <a
             href="#"
             id="new-tab-button"
@@ -375,6 +276,16 @@
             </svg>
             <span class="text-sm">Add New Tab</span>
           </a>
+
+          <div
+            class="text-xs font-semibold text-gray-600 uppercase px-4 space-y-1"
+          >
+            SERVICES
+          </div>
+
+          <div id="service-tabs-container">
+            <!-- Tombol-tombol layanan Ziti akan dirender di sini -->
+          </div>
         </div>
       </aside>
 
