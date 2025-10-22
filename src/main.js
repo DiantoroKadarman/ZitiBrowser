@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, safeStorage } from "electron";
+import { app, BrowserWindow, ipcMain, safeStorage, dialog } from "electron";
 import path from "node:path";
+import fs from "node:fs/promises";
 import started from "electron-squirrel-startup";
 import http from "node:http";
-import fs from "node:fs";
 import { URL } from "url";
 
 if (started) {
@@ -20,46 +20,11 @@ const ZITI_IDENTITIES_URL = `${ZITI_API_BASE_URL}/identities`;
 const ZITI_IDENTITY_URL = `${ZITI_API_BASE_URL}/identity`;
 const ZITI_ENROLL_URL = `${ZITI_API_BASE_URL}/enroll`;
 
-// --- KEAMANAN DAN KONSTANTA FILE ---
-const ENCRYPTED_IDENTITY_FILENAME = "encrypted_ziti_identity.dat";
-
 // --- STATE GLOBAL ---
 let mainWindow;
 let __currentDecryptedIdentity = null;
 let isZitiNetworkRunning = false;
 
-// --- UTILITY ---
-function getIdentityFilePath() {
-  return path.join(app.getPath("userData"), ENCRYPTED_IDENTITY_FILENAME);
-}
-
-function saveEncryptedIdentity(rawData) {
-  if (!safeStorage.isEncryptionAvailable())
-    throw new Error("SafeStorage tidak tersedia.");
-  const encryptedBuffer = safeStorage.encryptString(rawData);
-  fs.writeFileSync(getIdentityFilePath(), encryptedBuffer);
-}
-
-function loadDecryptedIdentity() {
-  const filePath = getIdentityFilePath();
-  if (!fs.existsSync(filePath)) return null;
-  if (!safeStorage.isEncryptionAvailable()) {
-    console.error("SafeStorage tidak tersedia.");
-    return null;
-  }
-  try {
-    const encryptedBuffer = fs.readFileSync(filePath);
-    return safeStorage.decryptString(encryptedBuffer);
-  } catch (e) {
-    console.error("Gagal mendekripsi identity:", e);
-    try {
-      fs.unlinkSync(filePath);
-    } catch (err) {}
-    return null;
-  }
-}
-
-// --- FUNGSI UTILITAS API REQUEST (DIPERBAIKI) ---
 function makeApiRequest(
   method,
   url,
@@ -69,6 +34,7 @@ function makeApiRequest(
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     let postData = data;
+
     if (
       contentType === "application/json" &&
       data &&
@@ -80,9 +46,8 @@ function makeApiRequest(
     const options = {
       hostname: urlObj.hostname,
       port: urlObj.port,
-      // PERBAIKAN: Menggabungkan pathname dan search untuk menyertakan parameter query
       path: urlObj.pathname + urlObj.search,
-      method: method,
+      method,
       headers: {
         "Content-Type": contentType,
         ...(postData && { "Content-Length": Buffer.byteLength(postData) }),
@@ -92,6 +57,7 @@ function makeApiRequest(
 
     const req = http.request(options, (res) => {
       let responseData = "";
+
       res.on("data", (chunk) => (responseData += chunk));
       res.on("end", () => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -101,7 +67,7 @@ function makeApiRequest(
           }
           try {
             resolve(JSON.parse(responseData));
-          } catch (e) {
+          } catch {
             reject(
               new Error(
                 `Gagal mem-parsing respons JSON dari API. Respons mentah: ${responseData}`
@@ -110,78 +76,132 @@ function makeApiRequest(
           }
         } else {
           reject(
-            new Error(`API Error: Status ${res.statusCode} - ${responseData}`)
+            new Error(
+              `Kesalahan API: Status ${res.statusCode} - ${responseData}`
+            )
           );
         }
       });
     });
 
     req.on("error", (e) =>
-      reject(new Error(`Request ke API Ziti gagal: ${e.message}`))
+      reject(new Error(`Permintaan ke API Ziti gagal: ${e.message}`))
     );
     req.on("timeout", () => {
       req.destroy();
-      reject(new Error(`Request ke API Ziti timeout.`));
+      reject(new Error("Permintaan ke API Ziti melewati batas waktu."));
     });
 
-    if (postData) {
-      req.write(postData);
-    }
+    if (postData) req.write(postData);
     req.end();
   });
 }
 
+function extractNameFromJwt(jwtString) {
+  try {
+    const parts = jwtString.split(".");
+    if (parts.length !== 3) return null;
+
+    const payloadBase64 = parts[1];
+    const payloadJson = Buffer.from(payloadBase64, "base64").toString("utf8");
+    const payload = JSON.parse(payloadJson);
+
+    const candidate = payload.sub || payload.name || payload.iss;
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim().replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+    }
+  } catch (e) {
+    console.warn("Gagal mengekstrak nama dari JWT:", e.message);
+  }
+  return null;
+}
+
+/**
+ * Hapus semua identitas aktif dari ziti-http-proxy
+ */
+async function clearAllActiveIdentities() {
+  try {
+    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    if (response?.services_collections?.length > 0) {
+      for (const coll of response.services_collections) {
+        const identityId = coll.identity_id?.trim();
+        if (identityId) {
+          const urlToDelete = `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`;
+          await makeApiRequest("DELETE", urlToDelete);
+          console.log(`Identitas lama dihapus: ${identityId}`);
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Gagal membersihkan identitas aktif:", error.message);
+    // Tidak throw error — lanjutkan saja
+  }
+}
 
 // --- IPC HANDLERS ---
 
-ipcMain.handle("check-identity-status", () => {
-  return loadDecryptedIdentity() ? "IDENTITY_SAVED" : "NEEDS_ENROLLMENT";
-});
-
 ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
   try {
-    // Langkah 1: Kirim JWT untuk mendapatkan identity JSON
-    const newIdentityData = await makeApiRequest(
-      "POST",
-      ZITI_ENROLL_URL,
-      { jwt: jwtContent }, // Sesuai asumsi, mengirim JWT dalam objek JSON
-      "application/json"
-    );
-
-    if (!newIdentityData || !newIdentityData.id) {
-      throw new Error("Respons dari /enroll tidak valid atau tidak berisi id.");
-    }
-    const identityJsonString = JSON.stringify(newIdentityData); // Langkah 2: Kirim identity JSON mentah untuk mengaktifkannya di proxy
-
-    await makeApiRequest(
-      "POST",
-      ZITI_IDENTITY_URL,
-      identityJsonString, // Mengirim string JSON mentah
-      "application/json" // Menggunakan application/json karena ini adalah konten JSON
-    );
-    saveEncryptedIdentity(identityJsonString);
-    __currentDecryptedIdentity = newIdentityData;
-    isZitiNetworkRunning = true;
-
-    if (mainWindow) {
-      await mainWindow.webContents.session.setProxy({
-        proxyRules: ZITI_PROXY_ADDRESS,
-      });
+    if (
+      !jwtContent ||
+      typeof jwtContent !== "string" ||
+      !jwtContent.includes(".")
+    ) {
+      throw new Error(
+        "JWT tidak valid. Format harus berupa string dengan tiga bagian."
+      );
     }
 
-    console.log(
-      `Jaringan Ziti Aktif dengan identity baru: ${newIdentityData.id}` //id soalnya butuh json mentah
-    );
+    if (!safeStorage.isEncryptionAvailable()) {
+      if (process.platform === "linux") {
+        throw new Error(
+          "Fitur enkripsi identitas tidak didukung di sistem Linux."
+        );
+      } else {
+        throw new Error(
+          "SafeStorage tidak tersedia untuk enkripsi pada sistem ini."
+        );
+      }
+    }
+    const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
+      jwt: jwtContent,
+    });
+
+    if (!newIdentityData || typeof newIdentityData.id !== "object") {
+      throw new Error(
+        "Respons dari /enroll tidak valid atau tidak memiliki objek ID."
+      );
+    }
+
+    const identityJsonString = JSON.stringify(newIdentityData);
+    const encryptedBuffer = safeStorage.encryptString(identityJsonString);
+    const encryptedBase64 = encryptedBuffer.toString("base64");
+
+    const fallbackName = `ziti-identity-${Date.now()}`;
+    const jwtExtractedName = extractNameFromJwt(jwtContent);
+    const fileName = `${jwtExtractedName || fallbackName}`;
+
+    const saveResult = await dialog.showSaveDialog(mainWindow, {
+      title: "Simpan Identity Terenkripsi",
+      defaultPath: fileName,
+      filters: [{ name: "Encrypted Identity", extensions: ["json.enc"] }],
+    });
+
+    if (!saveResult.canceled) {
+      await fs.writeFile(saveResult.filePath, encryptedBase64, "base64");
+      console.log(`Identity disimpan ke: ${saveResult.filePath}`);
+    }
 
     return {
       success: true,
-      identityName: newIdentityData.identity_name || "N/A",
+      message: `File identitas berhasil disimpan sebagai "${fileName}". Gunakan file ini untuk login.`,
     };
   } catch (e) {
-    console.error("Enrollment Gagal:", e);
+    console.error("Pendaftaran Gagal:", e);
     let userFriendlyMessage = e.message;
     if (e.message?.includes("Status 400")) {
-      userFriendlyMessage = `Proxy menolak data (Error 400). Pastikan file JWT valid.`;
+      userFriendlyMessage =
+        "Proxy menolak data (Error 400). Pastikan file JWT valid.";
     } else if (e.message?.includes("ECONNREFUSED")) {
       userFriendlyMessage = `Koneksi ke proxy ditolak. Pastikan ziti-http-proxy berjalan di port ${API_PORT}.`;
     }
@@ -189,164 +209,128 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
   }
 });
 
-ipcMain.handle("reactivate-saved-identity", async () => {
-  try {
-    const decryptedJsonString = loadDecryptedIdentity();
-    if (!decryptedJsonString) throw new Error("Tidak ada Identity tersimpan."); // Mengirim konten JSON yang disimpan untuk mengaktifkan kembali identity
-    await makeApiRequest(
-      "POST",
-      ZITI_IDENTITY_URL,
-      decryptedJsonString,
-      "application/json" // Mengirim sebagai application/json
-    );
-    const identityData = JSON.parse(decryptedJsonString);
-    __currentDecryptedIdentity = identityData;
-    isZitiNetworkRunning = true;
-    if (mainWindow)
-      await mainWindow.webContents.session.setProxy({
-        proxyRules: ZITI_PROXY_ADDRESS,
-      });
-
-    console.log(
-      `Jaringan Ziti Berhasil Diaktifkan Kembali untuk: ${identityData.identity_name}`
-    );
-    return {
-      success: true,
-      identityName: identityData.identity_name || "N/A",
-    };
-  } catch (e) {
-    console.error("Aktivasi Gagal:", e);
+/**
+ * UPLOAD → AKTIFKAN SESI
+ */
+ipcMain.handle("handle-identity-upload",async (event, encryptedFileContentBase64) => {
     try {
-      fs.unlinkSync(getIdentityFilePath());
-    } catch (err) {}
-    return {
-      success: false,
-      message: `${e.message}. Identity korup mungkin telah dihapus. Harap enroll ulang.`,
-    };
-  }
-});
+      if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error(
+          "SafeStorage tidak tersedia untuk dekripsi pada sistem ini."
+        );
+      }
 
+      if (
+        !encryptedFileContentBase64 ||
+        typeof encryptedFileContentBase64 !== "string"
+      ) {
+        throw new Error("File tidak valid: konten harus berupa string Base64.");
+      }
+
+      //HAPUS SEMUA IDENTITAS AKTIF SEBELUM MENAMBAHKAN YANG BARU
+      await clearAllActiveIdentities();
+      const encryptedBuffer = Buffer.from(encryptedFileContentBase64, "base64");
+      let decryptedJsonString;
+      try {
+        decryptedJsonString = safeStorage.decryptString(encryptedBuffer);
+      } catch (decErr) {
+        throw new Error(
+          "File tidak dapat didekripsi. Pastikan file berasal dari aplikasi ini dan tidak diubah."
+        );
+      }
+
+      if (!decryptedJsonString) {
+        throw new Error("Hasil dekripsi kosong. File mungkin rusak.");
+      }
+      await makeApiRequest(
+        "POST",
+        ZITI_IDENTITY_URL,
+        decryptedJsonString,
+        "application/json"
+      );
+
+      const identityData = JSON.parse(decryptedJsonString);
+      __currentDecryptedIdentity = identityData;
+      isZitiNetworkRunning = true;
+
+      if (mainWindow) {
+        await mainWindow.webContents.session.setProxy({
+          proxyRules: ZITI_PROXY_ADDRESS,
+        });
+      }
+
+      const activeSession = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+      const activeIdentity = activeSession?.services_collections?.[0];
+      const identityName = activeIdentity?.identity_name || "N/A";
+      const identityId = activeIdentity?.identity_id || "N/A";
+
+      console.log(`Jaringan Ziti aktif untuk: ${identityName}`);
+
+      return {
+        success: true,
+        identityName,
+        identityId,
+      };
+    } catch (e) {
+      console.error("Aktivasi dari file gagal:", e);
+      return {
+        success: false,
+        message: `Gagal memuat identitas. Pastikan file yang diunggah benar dan tidak rusak. Error: ${e.message}`,
+      };
+    }
+  }
+);
+
+// --- LOGOUT (TETAP SAMA) ---
 ipcMain.handle("logout", async () => {
-  // Reset proxy browser terlebih dahulu.
   if (mainWindow) {
     try {
       await mainWindow.webContents.session.setProxy({
         proxyRules: "direct://",
       });
-      console.log("Proxy browser telah direset ke 'direct'.");
+      await mainWindow.webContents.session.clearStorageData();
+      console.log("Proxy dan storage browser telah direset.");
     } catch (error) {
-      console.error("Gagal mereset proxy browser:", error);
+      console.error("Gagal mengatur ulang proxy/browser session:", error);
     }
   }
-
-  try {
-    // 1. Ambil data identity saat ini, menggunakan logika yang sama dengan 'get-ziti-identity-data'
-    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-
-    // Validasi bahwa respons memiliki `services_collections` dan tidak kosong.
-    if (
-      response &&
-      Array.isArray(response.services_collections) &&
-      response.services_collections.length > 0
-    ) {
-      // Ambil data pertama dari array.
-      const data = response.services_collections[0];
-      const deletedID = data.identity_id;
-
-      if (deletedID) {
-        // PERBAIKAN: Menambahkan .trim() dan log untuk debugging
-        const urlToDelete = `${ZITI_IDENTITY_URL}?id=${deletedID.trim()}`;
-        console.log(`Mencoba mengirim permintaan DELETE ke URL: ${urlToDelete}`);
-        
-        // 2. Kirim permintaan DELETE ke API proxy menggunakan ID yang diekstrak.
-        try {
-          await makeApiRequest(
-            "DELETE",
-            urlToDelete
-          );
-          console.log(
-            `Berhasil mengirim perintah hapus ke proxy untuk identity ${deletedID}.`
-          );
-        } catch (error) {
-          console.error(
-            `Gagal menghapus identity (${deletedID}) dari proxy saat logout:`,
-            error.message
-          );
-          // Lanjutkan proses logout meskipun penghapusan dari proxy gagal.
-        }
-      } else {
-         console.warn("Ditemukan active collection, namun tidak ada identity_id untuk dihapus.");
-      }
-    } else {
-      console.warn(
-        "Tidak dapat menemukan ID identity saat ini untuk dihapus dari proxy. Respons API tidak valid atau kosong."
-      );
-    }
-  } catch (error) {
-    console.error(
-      "Gagal mengambil data identity untuk dihapus:",
-      error.message
-    );
-  }
-
-  // 3. Hapus file identity yang tersimpan secara lokal.
-  try {
-    const filePath = getIdentityFilePath();
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log("File identity lokal telah berhasil dihapus.");
-    }
-  } catch (err) {
-    console.error("Gagal menghapus file identity lokal:", err);
-  }
-
-  // 4. Reset variabel state global.
+  await clearAllActiveIdentities();
   __currentDecryptedIdentity = null;
   isZitiNetworkRunning = false;
-  console.log(
-    "Logout berhasil. Sesi browser telah direset dan file lokal telah dihapus."
-  );
-
+  console.log("Logout berhasil.");
   return true;
 });
 
-
+// --- GET IDENTITY DATA (HANYA JIKA SESI AKTIF) ---
 ipcMain.handle("get-ziti-identity-data", async () => {
   if (!isZitiNetworkRunning || !__currentDecryptedIdentity) {
     throw new Error("Jaringan Ziti tidak aktif.");
   }
-  try {
-    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL); // Validasi bahwa respons memiliki `services_collections` dan tidak kosong.
 
-    if (
-      !response ||
-      !Array.isArray(response.services_collections) ||
-      response.services_collections.length === 0
-    ) {
-      throw new Error(
-        "Respons API tidak memiliki data services yang diharapkan."
-      );
-    } // AMBIL DATA PERTAMA dari array, sesuai dengan logika lama yang berhasil.
-    const activeCollection = response.services_collections[0];
+  try {
+    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    const active = response?.services_collections?.[0];
+    if (!active) {
+      throw new Error("Tidak ada identitas aktif ditemukan di proxy.");
+    }
 
     return {
-      identity_name: activeCollection.identity_name,
-      identity_id: activeCollection.identity_id,
-      services: [...new Set(activeCollection.services || [])],
+      identity_name: active.identity_name || "N/A",
+      identity_id: active.identity_id || "N/A",
+      services: [...new Set(active.services || [])],
     };
   } catch (error) {
-    console.error("Gagal mengambil data services dari API:", error); // Fallback jika terjadi error, kembalikan data dari state lokal.
+    console.error("Gagal mengambil data identitas dari API:", error);
     return {
-      identity_name: __currentDecryptedIdentity.identity_name || "N/A",
-      identity_id: __currentDecryptedIdentity.identity_id,
+      identity_name: "N/A",
+      identity_id: "N/A",
       services: [],
-      error: "Gagal mengambil daftar layanan dari proxy.",
+      error: error.message,
     };
   }
 });
 
 // --- APP LIFECYCLE ---
-
 const createWindow = () => {
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -369,7 +353,6 @@ const createWindow = () => {
 };
 
 app.whenReady().then(createWindow);
-
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
@@ -377,4 +360,3 @@ app.on("activate", () => {
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
-
