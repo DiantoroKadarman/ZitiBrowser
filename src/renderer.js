@@ -13,9 +13,7 @@ const tabsContainer = document.getElementById("tabs-container");
 const serviceTabsContainer = document.getElementById("service-tabs-container");
 const identityButton = document.getElementById("identity-button");
 const identityModal = document.getElementById("identity-modal");
-const identityDetailsContent = document.getElementById(
-  "identity-details-content"
-);
+const identityDetailsContent = document.getElementById("identity-details-content");
 const closeModalButton = document.getElementById("close-modal-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarContent = document.getElementById("sidebar-content");
@@ -37,11 +35,13 @@ processingIndicator.innerHTML = `<div class="animate-spin rounded-full h-12 w-12
 processingIndicator.classList.add("hidden");
 authScreen.appendChild(processingIndicator);
 
-// --- STATE GLOBAL BARU ---
+// --- STATE GLOBAL ---
 let tabs = [];
 let currentTabIndex = 0;
-let activeIdentities = []; // Array semua identitas aktif
-let enabledIdentityIds = new Set(); // Set ID yang di-enable di UI
+let activeIdentities = [];
+let enabledIdentityIds = new Set();
+let activeService = null; // 👈 Service yang sedang aktif
+let isNavigatingFromService = false; // 👈 Flag untuk deteksi asal navigasi
 
 // --- FUNGSI UTILITAS ---
 function showScreen(screen) {
@@ -82,16 +82,18 @@ function renderSidebar() {
       identity.services
         ?.map((service) => {
           const safeService = service.replace(/'/g, "\\'");
+          const isActive = service === activeService;
+          const buttonClass = `flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-blue-200 font-semibold" : ""}`;
           return `
-        <button 
-          type="button" 
-          class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300"
-          onclick="loadZitiServiceUrl('${safeService}')"
-          title="Akses: http://${service}"
-        >
-          <span class='text-sm'>${service}</span>
-        </button>
-      `;
+            <button 
+              type="button" 
+              class="${buttonClass}"
+              onclick="loadZitiServiceUrl('${safeService}')"
+              title="Akses: http://${service}"
+            >
+              <span class='text-sm'>${service}</span>
+            </button>
+          `;
         })
         .join("") || '<p class="text-gray-500 px-2">Tidak ada layanan</p>';
 
@@ -117,11 +119,14 @@ window.toggleIdentity = function (identityId) {
   renderSidebar();
 };
 
+// ✅ Fungsi baru: buka service tanpa mengganggu tab browser
 window.loadZitiServiceUrl = function (serviceName) {
   const serviceUrl = `http://${serviceName}`;
-  tabs[currentTabIndex].url = serviceUrl;
-  urlInputField.value = serviceUrl;
+  activeService = serviceName;
+  isNavigatingFromService = true;
   webview.src = serviceUrl;
+  urlInputField.value = serviceUrl;
+  renderSidebar(); // highlight service aktif
 };
 
 // --- FUNGSI BROWSER ---
@@ -131,8 +136,9 @@ function handleUrl() {
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     url = "http://" + url;
   }
+  isNavigatingFromService = false; // reset flag
   webview.src = url;
-  tabs[currentTabIndex].url = url;
+  if (tabs[currentTabIndex]) tabs[currentTabIndex].url = url;
 }
 
 function renderTabs() {
@@ -190,6 +196,8 @@ function switchToTab(index) {
   if (tab) {
     urlInputField.value = tab.url;
     webview.src = tab.url;
+    activeService = null; // reset service aktif saat pindah tab browser
+    renderSidebar();
   }
   renderTabs();
 }
@@ -209,6 +217,7 @@ async function handleLogout() {
     enabledIdentityIds = new Set();
     tabs = [];
     currentTabIndex = 0;
+    activeService = null;
 
     renderTabs();
     switchToTab(0);
@@ -243,7 +252,6 @@ window.displayIdentityData = function () {
             <p class="text-xs text-gray-500">ID: ${id.identity_id || "N/A"}</p>
           </div>
           <div class="flex items-center space-x-2 ml-3">
-            <!-- Toggle Aktif/Nonaktif -->
             <label class="relative inline-flex items-center cursor-pointer">
               <input 
                 type="checkbox" 
@@ -254,7 +262,6 @@ window.displayIdentityData = function () {
               <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
 
-            <!-- Tombol Hapus -->
             <button 
               type="button"
               class="text-red-500 hover:text-red-700"
@@ -284,13 +291,11 @@ window.displayIdentityData = function () {
   identityModal.classList.add("flex");
 };
 
-// Toggle dari modal
 window.toggleIdentityFromModal = function (identityId) {
   toggleIdentity(identityId);
   displayIdentityData();
 };
 
-// Hapus identitas spesifik dari modal
 window.deleteIdentityFromModal = async function (identityId) {
   if (!confirm("Yakin ingin menghapus identitas ini?")) return;
 
@@ -300,10 +305,10 @@ window.deleteIdentityFromModal = async function (identityId) {
       (id) => id.identity_id !== identityId
     );
     enabledIdentityIds.delete(identityId);
+    activeService = null;
     renderSidebar();
     displayIdentityData();
 
-    // Jika tidak ada identitas tersisa → kembali ke auth
     if (activeIdentities.length === 0) {
       identityModal.classList.add("hidden");
       identityModal.classList.remove("flex");
@@ -328,7 +333,6 @@ function arrayBufferToBase64(buffer) {
 }
 
 function setupAuthListeners() {
-  // Enrollment
   if (enrollmentForm) {
     enrollmentForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -359,7 +363,6 @@ function setupAuthListeners() {
     });
   }
 
-  // Upload Identity
   if (uploadIdentityButton) {
     uploadIdentityButton.addEventListener("click", () =>
       uploadIdentityFile.click()
@@ -368,12 +371,11 @@ function setupAuthListeners() {
 
   if (uploadIdentityFile) {
     uploadIdentityFile.addEventListener("change", async (e) => {
-      const files = Array.from(e.target.files); // Ambil semua file
+      const files = Array.from(e.target.files);
       if (files.length === 0) return;
 
       showScreen("processing");
       try {
-        // Konversi semua file ke Base64
         const base64Array = await Promise.all(
           files.map(async (file) => {
             const arrayBuffer = await file.arrayBuffer();
@@ -381,7 +383,6 @@ function setupAuthListeners() {
           })
         );
 
-        // Kirim array Base64 ke main process
         const result =
           await window.electronAPI.handleIdentityUpload(base64Array);
 
@@ -390,6 +391,7 @@ function setupAuthListeners() {
           enabledIdentityIds = new Set(
             activeIdentities.map((id) => id.identity_id)
           );
+          activeService = null;
           renderSidebar();
           showScreen("browser");
           if (tabs.length === 0) {
@@ -403,12 +405,11 @@ function setupAuthListeners() {
         console.error("Error upload:", err);
         handleAuthFailure(`Gagal membaca file: ${err.message}`);
       } finally {
-        e.target.value = null; // Reset input
+        e.target.value = null;
       }
     });
   }
 
-  // Kembali ke login
   const returnBtn = document.getElementById("return-to-login-button");
   if (returnBtn) {
     const clone = returnBtn.cloneNode(true);
@@ -427,7 +428,6 @@ async function init() {
   renderTabs();
   setupAuthListeners();
 
-  // ✅ PERIKSA SESI SETIAP KALI HALAMAN DIMUAT (termasuk reload)
   try {
     const result = await window.electronAPI.checkSession();
     if (result.type === "session-restored") {
@@ -435,6 +435,7 @@ async function init() {
       enabledIdentityIds = new Set(
         activeIdentities.map((id) => id.identity_id)
       );
+      activeService = null;
       renderSidebar();
       showScreen("browser");
       if (tabs.length === 0) {
@@ -452,10 +453,10 @@ async function init() {
     showScreen("authentication");
   }
 
-  // Tetap dengarkan event dari main process (untuk kasus lain)
   window.electronAPI.onSessionRestored((event, payload) => {
     activeIdentities = payload.identities || [];
     enabledIdentityIds = new Set(activeIdentities.map((id) => id.identity_id));
+    activeService = null;
     renderSidebar();
     showScreen("browser");
     if (tabs.length === 0) {
@@ -469,9 +470,7 @@ async function init() {
   });
 
   window.electronAPI.onProxyNotRunning(() => {
-    handleAuthFailure(
-      "ziti-http-proxy tidak berjalan. Jalankan proxy terlebih dahulu."
-    );
+    handleAuthFailure("ziti-http-proxy tidak berjalan. Jalankan proxy terlebih dahulu.");
     showScreen("authentication");
   });
 }
@@ -488,19 +487,36 @@ searchButton.addEventListener("click", () => {
   const url = "https://www.google.com";
   urlInputField.value = url;
   webview.src = url;
-  // Hanya update URL, jangan ganti title secara paksa
   if (tabs[currentTabIndex]) {
     tabs[currentTabIndex].url = url;
   }
+  activeService = null;
+  renderSidebar();
 });
+
 backButton.addEventListener("click", () => webview.goBack());
 forwardButton.addEventListener("click", () => webview.goForward());
-reloadButton.addEventListener("click", () => webview.reload());
+reloadButton.addEventListener("click", () => {
+  if (activeService) {
+    webview.src = `http://${activeService}`;
+  } else {
+    webview.reload();
+  }
+});
 
 webview.addEventListener("did-navigate", (e) => {
   if (e.url.startsWith("data:") || e.url.startsWith("ziti-")) return;
   urlInputField.value = e.url;
-  if (tabs[currentTabIndex]) tabs[currentTabIndex].url = e.url;
+
+  // Hanya update tab jika bukan dari service
+  if (!isNavigatingFromService && tabs[currentTabIndex]) {
+    tabs[currentTabIndex].url = e.url;
+  }
+
+  // Reset flag setelah navigasi
+  setTimeout(() => {
+    isNavigatingFromService = false;
+  }, 100);
 });
 
 newTabButton.addEventListener("click", () => {
@@ -513,23 +529,19 @@ newTabButton.addEventListener("click", () => {
 });
 
 // Modal & Sidebar
-if (identityButton)
-  identityButton.addEventListener("click", displayIdentityData);
-if (closeModalButton)
-  closeModalButton.addEventListener("click", () => {
+if (identityButton) identityButton.addEventListener("click", displayIdentityData);
+if (closeModalButton) closeModalButton.addEventListener("click", () => {
+  identityModal.classList.add("hidden");
+  identityModal.classList.remove("flex");
+});
+if (identityModal) identityModal.addEventListener("click", (e) => {
+  if (e.target === identityModal) {
     identityModal.classList.add("hidden");
     identityModal.classList.remove("flex");
-  });
-if (identityModal)
-  identityModal.addEventListener("click", (e) => {
-    if (e.target === identityModal) {
-      identityModal.classList.add("hidden");
-      identityModal.classList.remove("flex");
-    }
-  });
-if (collapseBtn)
-  collapseBtn.addEventListener("click", () => {
-    sidebar.classList.toggle("collapsed");
-    collapseBtn.classList.toggle("rotate-180");
-    sidebarContent.classList.toggle("hidden");
-  });
+  }
+});
+if (collapseBtn) collapseBtn.addEventListener("click", () => {
+  sidebar.classList.toggle("collapsed");
+  collapseBtn.classList.toggle("rotate-180");
+  sidebarContent.classList.toggle("hidden");
+});
