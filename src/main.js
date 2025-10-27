@@ -22,8 +22,6 @@ const ZITI_ENROLL_URL = `${ZITI_API_BASE_URL}/enroll`;
 
 // --- STATE GLOBAL ---
 let mainWindow;
-let __currentDecryptedIdentity = null;
-let isZitiNetworkRunning = false;
 
 function makeApiRequest(
   method,
@@ -116,25 +114,28 @@ function extractNameFromJwt(jwtString) {
   return null;
 }
 
-/**
- * Hapus semua identitas aktif dari ziti-http-proxy
- */
-async function clearAllActiveIdentities() {
+// --- FUNGSI: Periksa sesi (bisa dipanggil dari mana saja) ---
+async function checkSession() {
   try {
     const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-    if (response?.services_collections?.length > 0) {
-      for (const coll of response.services_collections) {
-        const identityId = coll.identity_id?.trim();
-        if (identityId) {
-          const urlToDelete = `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`;
-          await makeApiRequest("DELETE", urlToDelete);
-          console.log(`Identitas lama dihapus: ${identityId}`);
-        }
+    const identities = response?.services_collections || [];
+
+    if (identities.length > 0) {
+      if (mainWindow) {
+        await mainWindow.webContents.session.setProxy({
+          proxyRules: ZITI_PROXY_ADDRESS,
+        });
       }
+      return { type: "session-restored", payload: { identities } };
+    } else {
+      return { type: "show-auth" };
     }
   } catch (error) {
-    console.warn("Gagal membersihkan identitas aktif:", error.message);
-    // Tidak throw error — lanjutkan saja
+    if (error.message.includes("ECONNREFUSED")) {
+      return { type: "proxy-not-running" };
+    } else {
+      return { type: "show-auth" };
+    }
   }
 }
 
@@ -163,14 +164,12 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
         );
       }
     }
+
     const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
       jwt: jwtContent,
     });
-
     if (!newIdentityData || typeof newIdentityData.id !== "object") {
-      throw new Error(
-        "Respons dari /enroll tidak valid atau tidak memiliki objek ID."
-      );
+      throw new Error("Respons dari /enroll tidak valid.");
     }
 
     const identityJsonString = JSON.stringify(newIdentityData);
@@ -194,7 +193,7 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
 
     return {
       success: true,
-      message: `File identitas berhasil disimpan sebagai "${fileName}". Gunakan file ini untuk login.`,
+      message: `File identitas berhasil disimpan sebagai "${fileName}.json.enc". Gunakan file ini untuk login.`,
     };
   } catch (e) {
     console.error("Pendaftaran Gagal:", e);
@@ -209,79 +208,80 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
   }
 });
 
-/**
- * UPLOAD → AKTIFKAN SESI
- */
-ipcMain.handle("handle-identity-upload",async (event, encryptedFileContentBase64) => {
-    try {
-      if (!safeStorage.isEncryptionAvailable()) {
-        throw new Error(
-          "SafeStorage tidak tersedia untuk dekripsi pada sistem ini."
-        );
+
+ipcMain.handle("handle-identity-upload", async (event, input) => {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error(
+        "SafeStorage tidak tersedia untuk dekripsi pada sistem ini."
+      );
+    }
+
+    // Normalisasi input jadi array Base64
+    let base64Array;
+    if (typeof input === "string") {
+      // Satu file
+      base64Array = [input];
+    } else if (Array.isArray(input)) {
+      // Banyak file
+      if (input.length === 0) throw new Error("Tidak ada file yang diunggah.");
+      base64Array = input;
+    } else {
+      throw new Error(
+        "Input harus berupa string (1 file) atau array (banyak file)."
+      );
+    }
+
+    // Aktifkan proxy sekali saja
+    await mainWindow.webContents.session.setProxy({
+      proxyRules: ZITI_PROXY_ADDRESS,
+    });
+
+    // Proses semua file
+    for (const base64 of base64Array) {
+      if (typeof base64 !== "string") {
+        throw new Error("Setiap file harus berupa string Base64.");
       }
 
-      if (
-        !encryptedFileContentBase64 ||
-        typeof encryptedFileContentBase64 !== "string"
-      ) {
-        throw new Error("File tidak valid: konten harus berupa string Base64.");
-      }
-
-      //HAPUS SEMUA IDENTITAS AKTIF SEBELUM MENAMBAHKAN YANG BARU
-      await clearAllActiveIdentities();
-      const encryptedBuffer = Buffer.from(encryptedFileContentBase64, "base64");
+      const encryptedBuffer = Buffer.from(base64, "base64");
       let decryptedJsonString;
       try {
         decryptedJsonString = safeStorage.decryptString(encryptedBuffer);
       } catch (decErr) {
         throw new Error(
-          "File tidak dapat didekripsi. Pastikan file berasal dari aplikasi ini dan tidak diubah."
+          "File tidak dapat didekripsi. Pastikan file berasal dari aplikasi ini."
         );
       }
 
       if (!decryptedJsonString) {
         throw new Error("Hasil dekripsi kosong. File mungkin rusak.");
       }
+
       await makeApiRequest(
         "POST",
         ZITI_IDENTITY_URL,
         decryptedJsonString,
         "application/json"
       );
-
-      const identityData = JSON.parse(decryptedJsonString);
-      __currentDecryptedIdentity = identityData;
-      isZitiNetworkRunning = true;
-
-      if (mainWindow) {
-        await mainWindow.webContents.session.setProxy({
-          proxyRules: ZITI_PROXY_ADDRESS,
-        });
-      }
-
-      const activeSession = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-      const activeIdentity = activeSession?.services_collections?.[0];
-      const identityName = activeIdentity?.identity_name || "N/A";
-      const identityId = activeIdentity?.identity_id || "N/A";
-
-      console.log(`Jaringan Ziti aktif untuk: ${identityName}`);
-
-      return {
-        success: true,
-        identityName,
-        identityId,
-      };
-    } catch (e) {
-      console.error("Aktivasi dari file gagal:", e);
-      return {
-        success: false,
-        message: `Gagal memuat identitas. Pastikan file yang diunggah benar dan tidak rusak. Error: ${e.message}`,
-      };
     }
-  }
-);
 
-// --- LOGOUT (TETAP SAMA) ---
+    // Ambil daftar identitas terbaru
+    const activeSession = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    const identities = activeSession?.services_collections || [];
+
+    return {
+      success: true,
+      identities,
+    };
+  } catch (e) {
+    console.error("Gagal memuat identitas:", e);
+    return {
+      success: false,
+      message: `Gagal memuat identitas: ${e.message}`,
+    };
+  }
+});
+
 ipcMain.handle("logout", async () => {
   if (mainWindow) {
     try {
@@ -289,45 +289,64 @@ ipcMain.handle("logout", async () => {
         proxyRules: "direct://",
       });
       await mainWindow.webContents.session.clearStorageData();
-      console.log("Proxy dan storage browser telah direset.");
     } catch (error) {
-      console.error("Gagal mengatur ulang proxy/browser session:", error);
+      console.error("Gagal reset proxy/session:", error);
     }
-  }
-  await clearAllActiveIdentities();
-  __currentDecryptedIdentity = null;
-  isZitiNetworkRunning = false;
-  console.log("Logout berhasil.");
-  return true;
-});
-
-// --- GET IDENTITY DATA (HANYA JIKA SESI AKTIF) ---
-ipcMain.handle("get-ziti-identity-data", async () => {
-  if (!isZitiNetworkRunning || !__currentDecryptedIdentity) {
-    throw new Error("Jaringan Ziti tidak aktif.");
   }
 
   try {
     const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-    const active = response?.services_collections?.[0];
-    if (!active) {
-      throw new Error("Tidak ada identitas aktif ditemukan di proxy.");
+    if (response?.services_collections?.length > 0) {
+      for (const coll of response.services_collections) {
+        const id = coll.identity_id?.trim();
+        if (id) {
+          await makeApiRequest(
+            "DELETE",
+            `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`
+          );
+        }
+      }
     }
-
-    return {
-      identity_name: active.identity_name || "N/A",
-      identity_id: active.identity_id || "N/A",
-      services: [...new Set(active.services || [])],
-    };
   } catch (error) {
-    console.error("Gagal mengambil data identitas dari API:", error);
-    return {
-      identity_name: "N/A",
-      identity_id: "N/A",
-      services: [],
-      error: error.message,
-    };
+    console.warn("Gagal membersihkan identitas saat logout:", error.message);
   }
+
+  console.log("Logout berhasil.");
+  return true;
+});
+
+ipcMain.handle("get-ziti-identity-data", async () => {
+  try {
+    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    const identities = (response?.services_collections || []).map((coll) => ({
+      identity_name: coll.identity_name || "N/A",
+      identity_id: coll.identity_id || "N/A",
+      services: [...new Set(coll.services || [])],
+    }));
+    return { identities };
+  } catch (error) {
+    console.error("Gagal mengambil data identitas:", error);
+    return { identities: [] };
+  }
+});
+
+ipcMain.handle("delete-identity", async (event, identityId) => {
+  if (!identityId) throw new Error("identity_id diperlukan");
+  try {
+    await makeApiRequest(
+      "DELETE",
+      `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`
+    );
+    return { success: true };
+  } catch (error) {
+    console.error("Gagal menghapus identitas:", error);
+    throw error;
+  }
+});
+
+// --- IPC: Periksa sesi saat diminta oleh renderer (misal setelah reload) ---
+ipcMain.handle("check-session", async () => {
+  return await checkSession();
 });
 
 // --- APP LIFECYCLE ---
@@ -349,6 +368,13 @@ const createWindow = () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
+
+  // Cek sesi setelah halaman selesai dimuat (termasuk saat reload)
+  mainWindow.webContents.once("did-finish-load", async () => {
+    const result = await checkSession();
+    mainWindow.webContents.send(result.type, result.payload);
+  });
+
   mainWindow.webContents.openDevTools();
 };
 
@@ -356,7 +382,6 @@ app.whenReady().then(createWindow);
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
-
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

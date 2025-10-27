@@ -1,17 +1,21 @@
-// preload.js
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer } from "electron";
 
-contextBridge.exposeInMainWorld('electronAPI', {
-  // --- Enroll: kirim string JWT, dapatkan status & pesan
-  handleEnrollment: (jwtContent) => ipcRenderer.invoke('handle-enrollment', jwtContent),
-
-  // --- Upload: kirim konten file terenkripsi (Base64 string)
+contextBridge.exposeInMainWorld("electronAPI", {
+  handleEnrollment: (jwtContent) =>
+    ipcRenderer.invoke("handle-enrollment", jwtContent),
   handleIdentityUpload: (encryptedFileContentBase64) =>
-    ipcRenderer.invoke('handle-identity-upload', encryptedFileContentBase64),
+    ipcRenderer.invoke("handle-identity-upload", encryptedFileContentBase64),
 
-  // --- Logout
-  logout: () => ipcRenderer.invoke('logout'),
+  logout: () => ipcRenderer.invoke("logout"),
 
-  // --- Ambil data identitas aktif (hanya bisa dipanggil setelah login)
-  getZitiIdentityData: () => ipcRenderer.invoke('get-ziti-identity-data'),
+  getZitiIdentityData: () => ipcRenderer.invoke("get-ziti-identity-data"),
+
+  onSessionRestored: (callback) => ipcRenderer.on("session-restored", callback),
+  onShowAuth: (callback) => ipcRenderer.on("show-auth", callback),
+  onProxyNotRunning: (callback) =>
+    ipcRenderer.on("proxy-not-running", callback),
+
+  deleteIdentity: (identityId) =>
+    ipcRenderer.invoke("delete-identity", identityId),
+  checkSession: () => ipcRenderer.invoke('check-session'),
 });

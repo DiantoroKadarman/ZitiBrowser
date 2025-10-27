@@ -1,4 +1,5 @@
 import "./index.css";
+
 // --- REFERENSI ELEMEN NAVIGASI & UI ---
 const backButton = document.getElementById("back-button");
 const forwardButton = document.getElementById("forward-button");
@@ -26,26 +27,25 @@ const authBox = document.getElementById("auth-box");
 const enrollmentForm = document.getElementById("enrollment-form");
 const enrollJwtFile = document.getElementById("enroll-jwt-file");
 const authErrorMessage = document.getElementById("auth-error-message");
-
-// --- Referensi untuk unggah file identitas ---
 const uploadIdentityButton = document.getElementById("upload-identity-button");
-const uploadIdentityFile = document.getElementById("upload-identity-file"); // Input file yang tersembunyi
+const uploadIdentityFile = document.getElementById("upload-identity-file");
 
+// --- INDICATOR PROSES ---
 const processingIndicator = document.createElement("div");
 processingIndicator.className = "text-center";
 processingIndicator.innerHTML = `<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div><p class="text-lg text-gray-700">Memproses...</p>`;
 processingIndicator.classList.add("hidden");
-
 authScreen.appendChild(processingIndicator);
 
+// --- STATE GLOBAL BARU ---
 let tabs = [];
 let currentTabIndex = 0;
-let zitiIdentity = null;
+let activeIdentities = []; // Array semua identitas aktif
+let enabledIdentityIds = new Set(); // Set ID yang di-enable di UI
 
-// --- UTILITY SCRIPT DAN STATE MANAGEMENT ---
+// --- FUNGSI UTILITAS ---
 function showScreen(screen) {
   const browserContainer = document.querySelector(".app-container");
-
   browserContainer.classList.toggle("hidden", screen !== "browser");
   authScreen.classList.toggle("hidden", screen === "browser");
 
@@ -53,37 +53,8 @@ function showScreen(screen) {
     authBox.classList.toggle("hidden", screen === "processing");
     processingIndicator.classList.toggle("hidden", screen !== "processing");
   }
-
   authErrorMessage.classList.add("hidden");
   console.log(`Beralih ke tampilan: ${screen}`);
-}
-
-async function handleActivationSuccess() {
-  try {
-    await fetchIdentityData();
-    renderTabs();
-    showScreen("browser");
-
-    if (
-      zitiIdentity &&
-      zitiIdentity.services &&
-      zitiIdentity.services.length > 0
-    ) {
-      console.log(
-        `Aktivasi berhasil untuk Identity: ${zitiIdentity.identity_name}`
-      );
-    } else {
-      console.log(
-        "Jaringan Ziti aktif tetapi tidak ada layanan yang tersedia."
-      );
-      tabs[currentTabIndex].url = "https://www.google.com";
-      webview.src = tabs[currentTabIndex].url;
-      urlInputField.value = tabs[currentTabIndex].url;
-    }
-  } catch (e) {
-    console.error("Gagal memuat layanan setelah aktivasi sukses.", e);
-    webview.src = `data:text/html,${encodeURIComponent("<h1>Gagal Memuat Layanan</h1><p>Jaringan Ziti Aktif, namun gagal mengambil daftar layanan. Coba muat ulang aplikasi.</p>")}`;
-  }
 }
 
 function handleAuthFailure(message) {
@@ -92,136 +63,73 @@ function handleAuthFailure(message) {
   showScreen("authentication");
 }
 
-async function handleLogout() {
-  try {
-    if (identityModal) {
-      identityModal.classList.add("hidden");
-      identityModal.classList.remove("flex");
-    }
+// --- FUNGSI ZITI ---
+function renderSidebar() {
+  if (!serviceTabsContainer) return;
 
-    showScreen("processing");
-    await window.electronAPI.logout();
+  const enabledIdentities = activeIdentities.filter((id) =>
+    enabledIdentityIds.has(id.identity_id)
+  );
 
-    zitiIdentity = null;
-    if (serviceTabsContainer) {
-      serviceTabsContainer.innerHTML = `<p style='color: #666; padding: 10px;'>Identity terkunci.</p>`;
-    }
-
-    tabs = [];
-    currentTabIndex = 0;
-    renderTabs();
-    switchToTab(0);
-    webview.src = "about:blank";
-
-    showScreen("authentication");
-    console.log("Logout berhasil. Jaringan Ziti dihentikan.");
-  } catch (e) {
-    console.error("Gagal Logout:", e);
-    handleAuthFailure(
-      "Gagal saat mencoba logout. Silakan mulai ulang aplikasi."
-    );
+  if (enabledIdentities.length === 0) {
+    serviceTabsContainer.innerHTML = `<p style='color: #666; padding: 10px;'>Tidak ada identitas yang diaktifkan.</p>`;
+    return;
   }
-}
-window.handleLogout = handleLogout;
 
-function loadZitiServiceUrl(serviceName) {
+  let html = "";
+  enabledIdentities.forEach((identity) => {
+    const servicesHtml =
+      identity.services
+        ?.map((service) => {
+          const safeService = service.replace(/'/g, "\\'");
+          return `
+        <button 
+          type="button" 
+          class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300"
+          onclick="loadZitiServiceUrl('${safeService}')"
+          title="Akses: http://${service}"
+        >
+          <span class='text-sm'>${service}</span>
+        </button>
+      `;
+        })
+        .join("") || '<p class="text-gray-500 px-2">Tidak ada layanan</p>';
+
+    html += `
+      <div class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-semibold text-gray-800">${identity.identity_name}</h4>
+        </div>
+        <div class="ml-2">${servicesHtml}</div>
+      </div>
+    `;
+  });
+
+  serviceTabsContainer.innerHTML = html;
+}
+
+window.toggleIdentity = function (identityId) {
+  if (enabledIdentityIds.has(identityId)) {
+    enabledIdentityIds.delete(identityId);
+  } else {
+    enabledIdentityIds.add(identityId);
+  }
+  renderSidebar();
+};
+
+window.loadZitiServiceUrl = function (serviceName) {
   const serviceUrl = `http://${serviceName}`;
-  console.log(`[Ziti] Loading service URL: ${serviceUrl}`);
   tabs[currentTabIndex].url = serviceUrl;
   urlInputField.value = serviceUrl;
   webview.src = serviceUrl;
-}
-window.loadZitiServiceUrl = loadZitiServiceUrl;
+};
 
-async function fetchIdentityData() {
-  try {
-    console.log("[Ziti] Meminta data Identity ('Status') melalui IPC...");
-    const identity = await window.electronAPI.getZitiIdentityData();
-    zitiIdentity = identity;
-    console.log("Data Identity ('Status') diterima:", identity);
-    return identity;
-  } catch (error) {
-    console.error("Gagal mengambil Data Ziti Identity:", error.message);
-    const errorHtml = `<div style="padding: 20px; font-family: Arial, sans-serif; color: #cc0000;">
-  <h1>Gagal Mengambil Data dari Ziti Proxy</h1>
-  <p>Pastikan ziti-http-proxy berjalan di port yang benar (default: 8081).</p>
-  <p>Detail Error:</p>
-  <pre style="background: #fee; padding: 10px; border: 1px solid #f99; white-space: pre-wrap;">${error.message}</pre>
-  </div>`;
-    webview.src = `data:text/html,${encodeURIComponent(errorHtml)}`;
-    urlInputField.value = "ziti-identity-error://";
-    if (serviceTabsContainer) {
-      serviceTabsContainer.innerHTML = `<p class="text-red-500 p-3">Gagal memuat layanan.</p>`;
-    }
-    throw error;
-  }
-}
-
-function renderZitiServices(identity) {
-  const services = identity?.services;
-  if (!services || services.length === 0) {
-    if (serviceTabsContainer) {
-      serviceTabsContainer.innerHTML =
-        "<p style='color: #666; padding: 10px;'>Tidak ada layanan Ziti.</p>";
-    }
-    return;
-  }
-  const serviceButtonsHTML = services
-    .map((service) => {
-      const serviceName = service.replace(/'/g, "\\'");
-      return `
-  <button 
-   type="button" 
-   class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab relative hover:bg-gray-300"
-   onclick="loadZitiServiceUrl('${serviceName}')"
-   title="Akses layanan: http://${service}"
-  >
-   <span class='text-s'>${service}</span>
-  </button>
- `;
-    })
-    .join("");
-  if (serviceTabsContainer) {
-    serviceTabsContainer.innerHTML = serviceButtonsHTML;
-  }
-}
-
-async function displayIdentityData() {
-  if (!identityModal || !identityDetailsContent) return;
-
-  if (!zitiIdentity) {
-    try {
-      await fetchIdentityData();
-    } catch (e) {
-      handleAuthFailure("Gagal memuat data Identity. Silakan coba lagi.");
-      return;
-    }
-  }
-
-  const identity = zitiIdentity;
-  const textHtml = `
-     <div id="ziti-status-popup" class="p-0" style="font-family: Arial, sans-serif;">
-       <h3 class="font-bold text-gray-800 uppercase mb-3 text-lg border-b pb-2">DETAIL IDENTITAS</h3>
-         <p class="truncate mb-1"><span class="font-semibold text-gray-600">NAMA:</span> <span class="font-small text-gray-500">${identity.identity_name || "N/A"}</span></p>
-         <p class="truncate"><span class="font-semibold text-gray-600">ID:</span> <span class="font-small text-gray-500">${identity.identity_id || "N/A"}</span></p>
-         <p class="truncate mt-2 text-xs text-green-600">STATUS: 🟢 AKTIF</p>
-     </div>
-     <button id="logout-button" onclick="handleLogout()" class="mt-6 w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-       Logout & Kunci Identitas
-     </button>`;
-  identityDetailsContent.innerHTML = textHtml;
-  identityModal.classList.remove("hidden");
-  identityModal.classList.add("flex");
-}
-
-// --- FUNGSI MANAJEMEN TAB & BROWSER ---
+// --- FUNGSI BROWSER ---
 function handleUrl() {
-  let url = "";
-  const inputUrl = urlInputField.value;
-  if (inputUrl.startsWith("http://") || inputUrl.startsWith("https://")) {
-    url = inputUrl;
-  } else {
-    url = "http://" + inputUrl;
+  let url = urlInputField.value.trim();
+  if (!url) return;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = "http://" + url;
   }
   webview.src = url;
   tabs[currentTabIndex].url = url;
@@ -243,13 +151,11 @@ function renderTabs() {
     tabButton.innerHTML = `<span class='text-sm'>${tab.title}</span>`;
     tabButton.addEventListener("click", () => switchToTab(index));
 
-    // Tombol hapus tab (tanda silang)
     if (tabs.length > 1) {
       const closeBtn = document.createElement("span");
       closeBtn.innerHTML = "&times;";
       closeBtn.className =
         "close-btn ml-2 text-gray-400 hover:text-red-500 cursor-pointer";
-      closeBtn.style.transition = "opacity 0.2s";
       closeBtn.title = "Tutup Tab";
       closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -257,35 +163,25 @@ function renderTabs() {
       });
       tabButton.appendChild(closeBtn);
       tabButton.classList.add("group");
-      tabButton.addEventListener("mouseenter", () => {
-        closeBtn.style.opacity = "1";
-      });
-      tabButton.addEventListener("mouseleave", () => {
-        closeBtn.style.opacity = "0";
-      });
+      tabButton.addEventListener(
+        "mouseenter",
+        () => (closeBtn.style.opacity = "1")
+      );
+      tabButton.addEventListener(
+        "mouseleave",
+        () => (closeBtn.style.opacity = "0")
+      );
     }
     tabsContainer.appendChild(tabButton);
   });
-
-  if (zitiIdentity) {
-    renderZitiServices(zitiIdentity);
-  } else if (serviceTabsContainer) {
-    serviceTabsContainer.innerHTML = `<p style='color: #666; padding: 10px;'>Identity terkunci.</p>`;
-  }
 }
 
 function removeTab(index) {
   tabs.splice(index, 1);
-  if (currentTabIndex >= tabs.length) {
-    currentTabIndex = tabs.length - 1;
-  }
+  if (currentTabIndex >= tabs.length)
+    currentTabIndex = Math.max(0, tabs.length - 1);
   renderTabs();
-  if (tabs.length > 0) {
-    switchToTab(currentTabIndex);
-  } else {
-    renderTabs();
-    switchToTab(0);
-  }
+  if (tabs.length > 0) switchToTab(currentTabIndex);
 }
 
 function switchToTab(index) {
@@ -298,38 +194,325 @@ function switchToTab(index) {
   renderTabs();
 }
 
-// --- EVENT LISTENER & STARTUP CALL ---
-urlInputField.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    handleUrl();
+// --- LOGOUT ---
+async function handleLogout() {
+  try {
+    if (identityModal) {
+      identityModal.classList.add("hidden");
+      identityModal.classList.remove("flex");
+    }
+
+    showScreen("processing");
+    await window.electronAPI.logout();
+
+    activeIdentities = [];
+    enabledIdentityIds = new Set();
+    tabs = [];
+    currentTabIndex = 0;
+
+    renderTabs();
+    switchToTab(0);
+    webview.src = "about:blank";
+
+    showScreen("authentication");
+    console.log("Logout berhasil.");
+  } catch (e) {
+    console.error("Gagal Logout:", e);
+    handleAuthFailure("Gagal logout. Silakan mulai ulang aplikasi.");
   }
+}
+window.handleLogout = handleLogout;
+
+// --- TAMPILAN MODAL IDENTITAS ---
+window.displayIdentityData = function () {
+  if (!identityModal || !identityDetailsContent) return;
+
+  let html = '<h3 class="font-bold mb-3">IDENTITAS AKTIF</h3>';
+
+  if (activeIdentities.length === 0) {
+    html += "<p>Tidak ada identitas aktif.</p>";
+  } else {
+    activeIdentities.forEach((id) => {
+      const isChecked = enabledIdentityIds.has(id.identity_id);
+      const isDisabled = !isChecked;
+
+      html += `
+        <div class="mb-3 p-3 border rounded ${isDisabled ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start">
+          <div class="flex-1">
+            <p class="font-medium text-gray-800">${id.identity_name || "N/A"}</p>
+            <p class="text-xs text-gray-500">ID: ${id.identity_id || "N/A"}</p>
+          </div>
+          <div class="flex items-center space-x-2 ml-3">
+            <!-- Toggle Aktif/Nonaktif -->
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input 
+                type="checkbox" 
+                class="sr-only peer" 
+                ${isChecked ? "checked" : ""}
+                onchange="toggleIdentityFromModal('${id.identity_id}')"
+              />
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+
+            <!-- Tombol Hapus -->
+            <button 
+              type="button"
+              class="text-red-500 hover:text-red-700"
+              title="Hapus identitas ini"
+              onclick="deleteIdentityFromModal('${id.identity_id}')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  if (activeIdentities.length > 0) {
+    html += `
+      <button onclick="handleLogout()" class="mt-4 w-full py-2 bg-red-600 text-white rounded">
+        Logout Semua Identitas
+      </button>
+    `;
+  }
+
+  identityDetailsContent.innerHTML = html;
+  identityModal.classList.remove("hidden");
+  identityModal.classList.add("flex");
+};
+
+// Toggle dari modal
+window.toggleIdentityFromModal = function (identityId) {
+  toggleIdentity(identityId);
+  displayIdentityData();
+};
+
+// Hapus identitas spesifik dari modal
+window.deleteIdentityFromModal = async function (identityId) {
+  if (!confirm("Yakin ingin menghapus identitas ini?")) return;
+
+  try {
+    await window.electronAPI.deleteIdentity(identityId);
+    activeIdentities = activeIdentities.filter(
+      (id) => id.identity_id !== identityId
+    );
+    enabledIdentityIds.delete(identityId);
+    renderSidebar();
+    displayIdentityData();
+
+    // Jika tidak ada identitas tersisa → kembali ke auth
+    if (activeIdentities.length === 0) {
+      identityModal.classList.add("hidden");
+      identityModal.classList.remove("flex");
+      showScreen("authentication");
+    }
+
+    console.log(`Identitas ${identityId} dihapus.`);
+  } catch (err) {
+    console.error("Gagal menghapus identitas:", err);
+    alert("Gagal menghapus identitas. Coba lagi.");
+  }
+};
+
+// --- OTENTIKASI ---
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function setupAuthListeners() {
+  // Enrollment
+  if (enrollmentForm) {
+    enrollmentForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const file = enrollJwtFile.files[0];
+      if (!file) return handleAuthFailure("File JWT harus dipilih.");
+
+      showScreen("processing");
+      try {
+        const jwtContent = await file.text();
+        const result = await window.electronAPI.handleEnrollment(jwtContent);
+        if (result.success) {
+          authBox.classList.add("hidden");
+          authErrorMessage.classList.add("hidden");
+          const successScreen = document.getElementById("enrollment-success");
+          const msgEl = document.getElementById("success-message");
+          if (successScreen && msgEl) {
+            msgEl.textContent = result.message;
+            successScreen.classList.remove("hidden");
+          }
+          showScreen("authentication");
+        } else {
+          handleAuthFailure(result.message);
+        }
+      } catch (err) {
+        console.error("Error enrollment:", err);
+        handleAuthFailure("Terjadi kesalahan saat enrollment.");
+      }
+    });
+  }
+
+  // Upload Identity
+  if (uploadIdentityButton) {
+    uploadIdentityButton.addEventListener("click", () =>
+      uploadIdentityFile.click()
+    );
+  }
+
+  if (uploadIdentityFile) {
+    uploadIdentityFile.addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files); // Ambil semua file
+      if (files.length === 0) return;
+
+      showScreen("processing");
+      try {
+        // Konversi semua file ke Base64
+        const base64Array = await Promise.all(
+          files.map(async (file) => {
+            const arrayBuffer = await file.arrayBuffer();
+            return arrayBufferToBase64(arrayBuffer);
+          })
+        );
+
+        // Kirim array Base64 ke main process
+        const result =
+          await window.electronAPI.handleIdentityUpload(base64Array);
+
+        if (result.success) {
+          activeIdentities = result.identities || [];
+          enabledIdentityIds = new Set(
+            activeIdentities.map((id) => id.identity_id)
+          );
+          renderSidebar();
+          showScreen("browser");
+          if (tabs.length === 0) {
+            tabs.push({ title: "Home", url: "https://www.google.com" });
+            switchToTab(0);
+          }
+        } else {
+          handleAuthFailure(result.message);
+        }
+      } catch (err) {
+        console.error("Error upload:", err);
+        handleAuthFailure(`Gagal membaca file: ${err.message}`);
+      } finally {
+        e.target.value = null; // Reset input
+      }
+    });
+  }
+
+  // Kembali ke login
+  const returnBtn = document.getElementById("return-to-login-button");
+  if (returnBtn) {
+    const clone = returnBtn.cloneNode(true);
+    returnBtn.parentNode.replaceChild(clone, returnBtn);
+    clone.addEventListener("click", () => {
+      document.getElementById("enrollment-success")?.classList.add("hidden");
+      authBox.classList.remove("hidden");
+      enrollmentForm?.reset();
+      authErrorMessage.classList.add("hidden");
+    });
+  }
+}
+
+// --- INISIALISASI ---
+async function init() {
+  renderTabs();
+  setupAuthListeners();
+
+  // ✅ PERIKSA SESI SETIAP KALI HALAMAN DIMUAT (termasuk reload)
+  try {
+    const result = await window.electronAPI.checkSession();
+    if (result.type === "session-restored") {
+      activeIdentities = result.payload.identities;
+      enabledIdentityIds = new Set(
+        activeIdentities.map((id) => id.identity_id)
+      );
+      renderSidebar();
+      showScreen("browser");
+      if (tabs.length === 0) {
+        tabs.push({ title: "Home", url: "https://www.google.com" });
+        switchToTab(0);
+      }
+    } else if (result.type === "show-auth") {
+      showScreen("authentication");
+    } else if (result.type === "proxy-not-running") {
+      handleAuthFailure("ziti-http-proxy tidak berjalan.");
+      showScreen("authentication");
+    }
+  } catch (err) {
+    console.error("Gagal cek sesi:", err);
+    showScreen("authentication");
+  }
+
+  // Tetap dengarkan event dari main process (untuk kasus lain)
+  window.electronAPI.onSessionRestored((event, payload) => {
+    activeIdentities = payload.identities || [];
+    enabledIdentityIds = new Set(activeIdentities.map((id) => id.identity_id));
+    renderSidebar();
+    showScreen("browser");
+    if (tabs.length === 0) {
+      tabs.push({ title: "Tab 1", url: "https://www.google.com" });
+      switchToTab(0);
+    }
+  });
+
+  window.electronAPI.onShowAuth(() => {
+    showScreen("authentication");
+  });
+
+  window.electronAPI.onProxyNotRunning(() => {
+    handleAuthFailure(
+      "ziti-http-proxy tidak berjalan. Jalankan proxy terlebih dahulu."
+    );
+    showScreen("authentication");
+  });
+}
+
+document.addEventListener("DOMContentLoaded", init);
+
+// --- EVENT LISTENER BROWSER ---
+urlInputField.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") handleUrl();
 });
 goButton.addEventListener("click", handleUrl);
+
 searchButton.addEventListener("click", () => {
   const url = "https://www.google.com";
   urlInputField.value = url;
   webview.src = url;
-  tabs[currentTabIndex].url = url;
+  // Hanya update URL, jangan ganti title secara paksa
+  if (tabs[currentTabIndex]) {
+    tabs[currentTabIndex].url = url;
+  }
 });
 backButton.addEventListener("click", () => webview.goBack());
 forwardButton.addEventListener("click", () => webview.goForward());
 reloadButton.addEventListener("click", () => webview.reload());
 
-webview.addEventListener("did-navigate", (event) => {
-  if (event.url.startsWith("data:") || event.url.startsWith("ziti-")) return;
-  urlInputField.value = event.url;
-  if (tabs[currentTabIndex]) {
-    tabs[currentTabIndex].url = event.url;
-  }
+webview.addEventListener("did-navigate", (e) => {
+  if (e.url.startsWith("data:") || e.url.startsWith("ziti-")) return;
+  urlInputField.value = e.url;
+  if (tabs[currentTabIndex]) tabs[currentTabIndex].url = e.url;
 });
 
 newTabButton.addEventListener("click", () => {
-  const tab = { title: `Tab ${tabs.length + 1}`, url: "https://google.com" };
+  const tab = {
+    title: `Tab ${tabs.length + 1}`,
+    url: "https://www.google.com",
+  };
   tabs.push(tab);
   switchToTab(tabs.length - 1);
 });
 
+// Modal & Sidebar
 if (identityButton)
   identityButton.addEventListener("click", displayIdentityData);
 if (closeModalButton)
@@ -350,112 +533,3 @@ if (collapseBtn)
     collapseBtn.classList.toggle("rotate-180");
     sidebarContent.classList.toggle("hidden");
   });
-
-// --- LOGIKA OTENTIKASI (DIPERBAIKI SESUAI MAIN.JS BARU) ---
-
-function arrayBufferToBase64(buffer) {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function setupAuthListeners() {
-  // --- Enrollment Form ---
-  if (enrollmentForm) {
-    enrollmentForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const file = enrollJwtFile.files[0];
-      if (!file) {
-        handleAuthFailure("File JWT harus dipilih.");
-        return;
-      }
-
-      showScreen("processing");
-
-      try {
-        const jwtContent = await file.text();
-        const result = await window.electronAPI.handleEnrollment(jwtContent);
-
-        if (result.success) {
-          // Sembunyikan form, tampilkan pesan sukses
-          authBox.classList.add("hidden");
-          authErrorMessage.classList.add("hidden");
-
-          const successMessageEl = document.getElementById("success-message");
-          const successScreen = document.getElementById("enrollment-success");
-
-          if (successMessageEl && successScreen) {
-            successMessageEl.textContent = result.message;
-            successScreen.classList.remove("hidden");
-          }
-
-          showScreen("authentication");
-        } else {
-          handleAuthFailure(result.message);
-        }
-      } catch (err) {
-        console.error("Error during enrollment:", err);
-        handleAuthFailure("Terjadi kesalahan saat memproses enrollment.");
-      }
-    });
-  }
-
-  // --- Upload Identity Button ---
-  if (uploadIdentityButton) {
-    uploadIdentityButton.addEventListener("click", () => {
-      uploadIdentityFile.click();
-    });
-  }
-
-  if (uploadIdentityFile) {
-    uploadIdentityFile.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-      showScreen("processing");
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = arrayBufferToBase64(arrayBuffer);
-        const result = await window.electronAPI.handleIdentityUpload(base64);
-        if (result.success) {
-          handleActivationSuccess();
-        } else {
-          handleAuthFailure(result.message);
-        }
-      } catch (err) {
-        console.error("Error saat membaca file:", err);
-        handleAuthFailure(`Gagal membaca file: ${err.message}`);
-      } finally {
-        event.target.value = null;
-      }
-    });
-  }
-
-  // --- Listener untuk tombol "Kembali ke Login" ---
-  const returnBtn = document.getElementById("return-to-login-button");
-  if (returnBtn) {
-    // Hindari duplikasi listener
-    const newBtn = returnBtn.cloneNode(true);
-    returnBtn.parentNode.replaceChild(newBtn, returnBtn);
-    newBtn.addEventListener("click", () => {
-      // Sembunyikan pesan sukses
-      document.getElementById("enrollment-success")?.classList.add("hidden");
-      // Tampilkan kembali form
-      authBox.classList.remove("hidden");
-      // Reset form & error
-      enrollmentForm?.reset();
-      authErrorMessage.classList.add("hidden");
-    });
-  }
-}
-
-async function init() {
-  renderTabs();
-  setupAuthListeners();
-  showScreen("authentication");
-}
-
-document.addEventListener("DOMContentLoaded", init);
