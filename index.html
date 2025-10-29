@@ -81,10 +81,10 @@
               />
             </svg>
           </button>
-          <!-- search-button -->
+          <!-- home-button -->
           <button
             id="search-button"
-            title="Search Google"
+            title="Home"
             class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
           >
             <svg
@@ -98,7 +98,7 @@
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
               />
             </svg>
           </button>
@@ -207,29 +207,45 @@
 
         <!-- Content Area -->
         <main id="main-content" class="main-content flex-grow bg-gray-200">
-          <webview
-            id="webview"
-            src=""
-            style="width: 100%; height: 100%"
-          ></webview>
+          <div id="webview-container" class="w-full h-full"></div>
         </main>
       </div>
     </div>
     <!-- END WRAPPER UTAMA BROWSER -->
 
-    <!-- IDENTITY MODAL (Diisi oleh displayIdentityData) -->
+    <!-- Identity Modal -->
     <div
       id="identity-modal"
-      class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
     >
-      <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-        <div id="identity-details-content"></div>
-        <div class="mt-4 flex justify-end">
+      <div
+        class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col"
+      >
+        <!-- Header -->
+        <div class="p-4 border-b">
+          <h3 class="font-bold text-gray-900">IDENTITAS AKTIF</h3>
+        </div>
+
+        <!-- Scrollable Content -->
+        <div id="identity-details-content" class="p-4 overflow-y-auto flex-1">
+          <!-- Konten diisi oleh JS -->
+        </div>
+
+        <!-- Footer (tombol tetap di bawah, tidak ikut scroll) -->
+        <div class="p-4 border-t bg-gray-50">
           <button
-            id="close-modal-button"
-            class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 focus:outline-none"
+            type="button"
+            onclick="uploadIdentityFromModal()"
+            class="w-full py-2 mb-2 bg-gray-500 text-white rounded hover:bg-gray-700"
           >
-            Tutup
+            Tambah Identitas
+          </button>
+          <button
+            onclick="handleLogout()"
+            class="w-full py-2 bg-red-600 text-white rounded"
+            id="logout-all-button"
+          >
+            Logout Semua Identitas
           </button>
         </div>
       </div>
@@ -265,7 +281,7 @@
         <!-- Tombol untuk Upload Identity -->
         <button
           id="upload-identity-button"
-          class="w-full mb-4 py-3 px-4 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-medium flex items-center justify-center"
+          class="w-full mb-6 py-3 px-4 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-medium flex items-center justify-center"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -281,12 +297,6 @@
           </svg>
           Unggah File Identitas (.json.enc)
         </button>
-        <input
-          type="file"
-          id="upload-identity-file"
-          accept=".json.enc"
-          multiple
-        />
 
         <div class="relative flex py-3 items-center">
           <div class="flex-grow border-t border-gray-300"></div>
@@ -294,20 +304,28 @@
           <div class="flex-grow border-t border-gray-300"></div>
         </div>
 
-        <!-- Form Enrollment -->
+        <!-- Form Enrollment (versi baru) -->
         <form id="enrollment-form">
           <p class="text-sm text-gray-600 mb-4 text-center">
             Enroll file token (.jwt) untuk membuat identitas baru.<br />
           </p>
-          <div class="mb-4">
+          <div class="mb-6">
             <label
               for="enroll-jwt-file"
-              class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border rounded-lg p-3 flex items-center justify-center"
+              class="block text-sm font-medium text-gray-700"
             >
-              Pilih File JWT...
+              Pilih File JWT
             </label>
-            <input type="file" id="enroll-jwt-file" accept=".jwt" required />
+            <input
+              type="file"
+              id="enroll-jwt-file"
+              accept=".jwt"
+              required
+              class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+            />
           </div>
+
+          <!-- Tombol Enroll tetap ada, tapi tidak ada input password di sini -->
           <button
             type="submit"
             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
@@ -316,11 +334,16 @@
           </button>
         </form>
       </div>
+    </div>
+    <!-- END WRAPPER AUTH SCREEN -->
 
-      <!-- Pesan Sukses (Enrollment Berhasil) - Awalnya disembunyikan -->
+    <!-- Modal: Enrollment Berhasil -->
+    <div
+      id="enrollment-success-modal"
+      class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    >
       <div
-        id="enrollment-success"
-        class="hidden bg-white p-8 rounded-xl shadow-2xl w-full max-w-md text-center"
+        class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md mx-4 text-center"
       >
         <div
           class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100"
@@ -347,11 +370,53 @@
         </p>
         <div class="mt-5">
           <button
-            id="return-to-login-button"
+            id="close-success-modal"
             type="button"
             class="w-full py-2 px-4 rounded-md bg-indigo-600 text-white font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
             Kembali ke Login
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden file input for identity upload -->
+    <input
+      type="file"
+      id="identity-file-input"
+      accept=".json.enc"
+      multiple
+      style="display: none"
+    />
+
+    <!-- Modal Input Password -->
+    <div
+      id="password-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">
+          Masukkan Password
+        </h3>
+        <input
+          type="password"
+          id="password-input"
+          placeholder="Password file identitas"
+          class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          autofocus
+        />
+        <div class="flex justify-end space-x-2">
+          <button
+            id="password-cancel"
+            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+          >
+            Batal
+          </button>
+          <button
+            id="password-submit"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            OK
           </button>
         </div>
       </div>

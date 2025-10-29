@@ -30,7 +30,7 @@ body {
   transition: width 0.3s ease-in-out;
 }
 .sidebar.collapsed {
-  width: 4rem;
+  width: 3.2rem;
 }
 
 #tabs-container.collapsed {
@@ -132,7 +132,3 @@ body {
   flex-grow: 1;
   overflow: hidden;
 }
-
-input[type="file"] {
-        display: none;
-      }

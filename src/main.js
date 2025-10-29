@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain, safeStorage, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 import started from "electron-squirrel-startup";
 import http from "node:http";
 import { URL } from "url";
+import { spawn } from "child_process";
+import crypto from "node:crypto";
 
 if (started) {
   app.quit();
@@ -13,15 +15,130 @@ if (started) {
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "8080";
 const API_PORT = "8081";
-
 const ZITI_PROXY_ADDRESS = `http=${PROXY_HOST}:${PROXY_PORT}`;
 const ZITI_API_BASE_URL = `http://${PROXY_HOST}:${API_PORT}`;
 const ZITI_IDENTITIES_URL = `${ZITI_API_BASE_URL}/identities`;
 const ZITI_IDENTITY_URL = `${ZITI_API_BASE_URL}/identity`;
 const ZITI_ENROLL_URL = `${ZITI_API_BASE_URL}/enroll`;
 
+// Konstanta enkripsi
+const ALGORITHM = "aes-256-gcm";
+const KEY_LENGTH = 32; // 256 bit
+const IV_LENGTH = 12; // 96 bit untuk GCM
+const SALT_LENGTH = 16;
+const ITERATIONS = 100000;
+const DIGEST = "sha256";
+
 // --- STATE GLOBAL ---
 let mainWindow;
+let proxyProcess = null;
+
+function deriveKey(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, DIGEST);
+}
+
+function encryptStringWithPassword(plaintext, password) {
+  const salt = crypto.randomBytes(SALT_LENGTH);
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const key = deriveKey(password, salt);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, "utf8"),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  // Format: salt + iv + authTag + encrypted
+  return Buffer.concat([salt, iv, authTag, encrypted]).toString("base64");
+}
+
+// Dekripsi string dengan password
+function decryptStringWithPassword(encryptedBase64, password) {
+  const buffer = Buffer.from(encryptedBase64, "base64");
+  if (buffer.length < SALT_LENGTH + IV_LENGTH + 16) {
+    throw new Error("File terenkripsi rusak atau tidak valid.");
+  }
+
+  const salt = buffer.subarray(0, SALT_LENGTH);
+  const iv = buffer.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+  const authTag = buffer.subarray(
+    SALT_LENGTH + IV_LENGTH,
+    SALT_LENGTH + IV_LENGTH + 16
+  );
+  const encrypted = buffer.subarray(SALT_LENGTH + IV_LENGTH + 16);
+
+  const key = deriveKey(password, salt);
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted;
+  try {
+    decrypted =
+      decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
+  } catch (e) {
+    throw new Error("Password salah atau file rusak.");
+  }
+
+  return decrypted;
+}
+
+function getProxyPath() {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "assets", "zitihttproxy.exe");
+  } else {
+    return path.join(__dirname, "../../assets/zitihttproxy.exe");
+  }
+}
+
+// --- FUNGSI: Jalankan proxy.exe ---
+function startProxy() {
+  if (process.platform !== "win32") {
+    console.log("Proxy.exe hanya berjalan di Windows.");
+    return;
+  }
+
+  const proxyPath = getProxyPath();
+
+  // Opsional: cek apakah file benar-benar ada
+  const fsSync = require("fs");
+  if (!fsSync.existsSync(proxyPath)) {
+    console.error("File proxy tidak ditemukan di:", proxyPath);
+    return;
+  }
+
+  try {
+    proxyProcess = spawn(proxyPath, [], {
+      detached: false,
+      stdio: "ignore", // ganti ke "inherit" jika ingin lihat log di terminal
+    });
+
+    proxyProcess.on("error", (err) => {
+      console.error("Gagal menjalankan proxy.exe:", err.message);
+    });
+
+    proxyProcess.on("exit", (code, signal) => {
+      console.log(`Proxy.exe berhenti (kode: ${code}, sinyal: ${signal})`);
+      proxyProcess = null;
+    });
+
+    console.log("Proxy.exe berhasil dijalankan.");
+  } catch (err) {
+    console.error("Error saat memulai proxy:", err);
+  }
+}
+
+// --- FUNGSI: Hentikan proxy.exe ---
+function stopProxy() {
+  if (proxyProcess) {
+    console.log("Menghentikan proxy.exe...");
+    proxyProcess.kill();
+    proxyProcess = null;
+  }
+}
+
+// --- HENTIKAN PROXY SAAT KELUAR ---
+app.on("before-quit", stopProxy);
+app.on("quit", stopProxy);
 
 function makeApiRequest(
   method,
@@ -95,6 +212,7 @@ function makeApiRequest(
   });
 }
 
+
 function extractNameFromJwt(jwtString) {
   try {
     const parts = jwtString.split(".");
@@ -139,9 +257,8 @@ async function checkSession() {
   }
 }
 
-// --- IPC HANDLERS ---
-
-ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
+// --- IPCMAIN HANDLERS ---
+ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
   try {
     if (
       !jwtContent ||
@@ -153,28 +270,24 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
       );
     }
 
-    if (!safeStorage.isEncryptionAvailable()) {
-      if (process.platform === "linux") {
-        throw new Error(
-          "Fitur enkripsi identitas tidak didukung di sistem Linux."
-        );
-      } else {
-        throw new Error(
-          "SafeStorage tidak tersedia untuk enkripsi pada sistem ini."
-        );
-      }
+    if (!password || typeof password !== "string" || password.length < 8) {
+      throw new Error("Password minimal 8 karakter.");
     }
 
+    // Enroll ke Ziti
     const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
       jwt: jwtContent,
     });
+
     if (!newIdentityData || typeof newIdentityData.id !== "object") {
       throw new Error("Respons dari /enroll tidak valid.");
     }
 
     const identityJsonString = JSON.stringify(newIdentityData);
-    const encryptedBuffer = safeStorage.encryptString(identityJsonString);
-    const encryptedBase64 = encryptedBuffer.toString("base64");
+    const encryptedBase64 = encryptStringWithPassword(
+      identityJsonString,
+      password
+    );
 
     const fallbackName = `ziti-identity-${Date.now()}`;
     const jwtExtractedName = extractNameFromJwt(jwtContent);
@@ -187,13 +300,18 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
     });
 
     if (!saveResult.canceled) {
-      await fs.writeFile(saveResult.filePath, encryptedBase64, "base64");
-      console.log(`Identity disimpan ke: ${saveResult.filePath}`);
+      let filePath = saveResult.filePath;
+
+      // Hapus semua kemunculan .json.enc di akhir, lalu tambahkan satu
+      filePath = filePath.replace(/(\.json\.enc)+$/i, "") + ".json.enc";
+
+      await fs.writeFile(filePath, encryptedBase64, "base64");
+      console.log(`Identity disimpan ke: ${filePath}`);
     }
 
     return {
       success: true,
-      message: `File identitas berhasil disimpan sebagai "${fileName}.json.enc". Gunakan file ini untuk login.`,
+      message: `File identitas berhasil disimpan sebagai "${fileName}".json.enc`,
     };
   } catch (e) {
     console.error("Pendaftaran Gagal:", e);
@@ -208,54 +326,29 @@ ipcMain.handle("handle-enrollment", async (event, jwtContent) => {
   }
 });
 
-
-ipcMain.handle("handle-identity-upload", async (event, input) => {
-  try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error(
-        "SafeStorage tidak tersedia untuk dekripsi pada sistem ini."
-      );
+ipcMain.handle("handle-identity-upload",async (event, base64Data, password) => {
+    if (!base64Data || typeof base64Data !== "string") {
+      return { success: false, message: "Data file tidak valid." };
+    }
+    if (!password || typeof password !== "string") {
+      return { success: false, message: "Password diperlukan." };
     }
 
-    // Normalisasi input jadi array Base64
-    let base64Array;
-    if (typeof input === "string") {
-      // Satu file
-      base64Array = [input];
-    } else if (Array.isArray(input)) {
-      // Banyak file
-      if (input.length === 0) throw new Error("Tidak ada file yang diunggah.");
-      base64Array = input;
-    } else {
-      throw new Error(
-        "Input harus berupa string (1 file) atau array (banyak file)."
+    try {
+      // Dekripsi dari base64
+      const decryptedJsonString = decryptStringWithPassword(
+        base64Data,
+        password
       );
-    }
-
-    // Aktifkan proxy sekali saja
-    await mainWindow.webContents.session.setProxy({
-      proxyRules: ZITI_PROXY_ADDRESS,
-    });
-
-    // Proses semua file
-    for (const base64 of base64Array) {
-      if (typeof base64 !== "string") {
-        throw new Error("Setiap file harus berupa string Base64.");
-      }
-
-      const encryptedBuffer = Buffer.from(base64, "base64");
-      let decryptedJsonString;
-      try {
-        decryptedJsonString = safeStorage.decryptString(encryptedBuffer);
-      } catch (decErr) {
-        throw new Error(
-          "File tidak dapat didekripsi. Pastikan file berasal dari aplikasi ini."
-        );
-      }
 
       if (!decryptedJsonString) {
-        throw new Error("Hasil dekripsi kosong. File mungkin rusak.");
+        throw new Error("File terdekripsi kosong.");
       }
+
+      // Set proxy & upload ke Ziti
+      await mainWindow.webContents.session.setProxy({
+        proxyRules: ZITI_PROXY_ADDRESS,
+      });
 
       await makeApiRequest(
         "POST",
@@ -263,24 +356,17 @@ ipcMain.handle("handle-identity-upload", async (event, input) => {
         decryptedJsonString,
         "application/json"
       );
+
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal memproses identitas dari base64:", e);
+      return {
+        success: false,
+        message: e.message || "Gagal memproses file identitas.",
+      };
     }
-
-    // Ambil daftar identitas terbaru
-    const activeSession = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-    const identities = activeSession?.services_collections || [];
-
-    return {
-      success: true,
-      identities,
-    };
-  } catch (e) {
-    console.error("Gagal memuat identitas:", e);
-    return {
-      success: false,
-      message: `Gagal memuat identitas: ${e.message}`,
-    };
   }
-});
+);
 
 ipcMain.handle("logout", async () => {
   if (mainWindow) {
@@ -378,10 +464,16 @@ const createWindow = () => {
   mainWindow.webContents.openDevTools();
 };
 
-app.whenReady().then(createWindow);
+// Jalankan proxy lalu buat window
+app.whenReady().then(() => {
+  startProxy(); // <-- ditambahkan
+  createWindow();
+});
+
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
