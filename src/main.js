@@ -82,11 +82,25 @@ function decryptStringWithPassword(encryptedBase64, password) {
   return decrypted;
 }
 
+function getProjectRoot() {
+  let dir = __dirname;
+  const fs = require("fs");
+
+  for (let i = 0; i < 5; i++) {
+    const pkg = path.join(dir, "package.json");
+    if (fs.existsSync(pkg)) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error("Tidak bisa menemukan root proyek");
+}
+
 function getProxyPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "assets", "zitihttproxy.exe");
   } else {
-    return path.join(__dirname, "../../assets/zitihttproxy.exe");
+    return path.join(getProjectRoot(), "assets", "zitihttproxy.exe");
   }
 }
 
@@ -96,20 +110,17 @@ function startProxy() {
     console.log("Proxy.exe hanya berjalan di Windows.");
     return;
   }
-
   const proxyPath = getProxyPath();
-
   // Opsional: cek apakah file benar-benar ada
   const fsSync = require("fs");
   if (!fsSync.existsSync(proxyPath)) {
     console.error("File proxy tidak ditemukan di:", proxyPath);
     return;
   }
-
   try {
     proxyProcess = spawn(proxyPath, [], {
       detached: false,
-      stdio: "ignore", // ganti ke "inherit" jika ingin lihat log di terminal
+      stdio: "inherit", // lihat log di terminal (inherit), disable log (ignore) 
     });
 
     proxyProcess.on("error", (err) => {
@@ -211,7 +222,6 @@ function makeApiRequest(
     req.end();
   });
 }
-
 
 function extractNameFromJwt(jwtString) {
   try {
@@ -326,7 +336,9 @@ ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
   }
 });
 
-ipcMain.handle("handle-identity-upload",async (event, base64Data, password) => {
+ipcMain.handle(
+  "handle-identity-upload",
+  async (event, base64Data, password) => {
     if (!base64Data || typeof base64Data !== "string") {
       return { success: false, message: "Data file tidak valid." };
     }

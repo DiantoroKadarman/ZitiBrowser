@@ -422,6 +422,30 @@
       </div>
     </div>
 
+    <!-- Log Modal -->
+    <div
+      id="log-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-y-auto">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Proxy Log</h3>
+        <pre
+          id="log-content"
+          class="bg-gray-100 p-4 rounded-md h-96 overflow-y-auto text-sm font-mono"
+        ></pre>
+        <div class="flex justify-end mt-4">
+          <button
+            id="log-close"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div> 
+
+
+
     <script type="module" src="/src/renderer.js"></script>
   </body>
 </html>
