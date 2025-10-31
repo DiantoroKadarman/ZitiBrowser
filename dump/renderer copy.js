@@ -28,7 +28,6 @@ const enrollmentForm = document.getElementById("enrollment-form");
 const enrollJwtFile = document.getElementById("enroll-jwt-file");
 const authErrorMessage = document.getElementById("auth-error-message");
 const uploadIdentityButton = document.getElementById("upload-identity-button");
-// const uploadIdentityFile = document.getElementById("upload-identity-file");
 
 // --- INDICATOR PROSES ---
 const processingIndicator = document.createElement("div");
@@ -72,7 +71,6 @@ function showPasswordPrompt() {
     const submitBtn = document.getElementById("password-submit");
     const cancelBtn = document.getElementById("password-cancel");
 
-    // Reset input
     input.value = "";
     modal.classList.remove("hidden");
 
@@ -106,11 +104,11 @@ function showPasswordPrompt() {
 }
 
 function showWebview(targetWebview) {
-  // Sembunyikan semua webview
-  [
+  const allWebviews = [
     ...tabs.map((t) => t.webview),
     ...Array.from(serviceTabs.values()).map((s) => s.webview),
-  ]
+  ];
+  allWebviews
     .filter((wv) => wv && wv !== targetWebview)
     .forEach((wv) => wv.classList.add("hidden"));
 
@@ -149,7 +147,6 @@ function updateNavButtons() {
   forwardButton.disabled = !canGoForward;
 }
 
-// --- ZITI ---
 function getServiceTabId(identityId, serviceName) {
   return `${identityId}::${serviceName}`;
 }
@@ -173,12 +170,12 @@ function renderSidebar() {
           const tabId = getServiceTabId(identity.identity_id, service);
           const isActive = tabId === activeServiceTabId;
           return `
-        <button type="button" class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-blue-200 font-semibold" : ""}"
-          onclick="openServiceTab('${identity.identity_id}', '${service.replace(/'/g, "\\'")}')"
-          title="Akses: http://${service}">
-          <span class='text-sm'>${service}</span>
-        </button>
-      `;
+            <button type="button" class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-blue-200 font-semibold" : ""}"
+              onclick="openServiceTab('${identity.identity_id}', '${service.replace(/'/g, "\\'")}')"
+              title="Akses: http://${service}">
+              <span class='text-sm'>${service}</span>
+            </button>
+          `;
         })
         .join("") || '<p class="text-gray-500 px-2">Tidak ada layanan</p>';
 
@@ -244,7 +241,6 @@ function switchToServiceTab(tabId) {
   updateNavButtons();
 }
 
-// --- BROWSER TABS ---
 function createWebviewForTab(url) {
   const webview = document.createElement("webview");
   webview.setAttribute("nodeintegration", "false");
@@ -286,7 +282,6 @@ function renderTabs() {
     const tabButton = document.createElement("button");
     tabButton.type = "button";
     tabButton.className = `flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab relative ${isActive ? "bg-gray-200 active" : "hover:bg-gray-300"}`;
-    // Potong judul jika terlalu panjang → CSS: truncate + max-w-full
     tabButton.innerHTML = `<span class='text-sm max-w-full truncate'>${tab.title}</span>`;
 
     tabButton.addEventListener("click", () => switchToBrowserTab(index));
@@ -340,7 +335,6 @@ function switchToBrowserTab(index) {
   updateNavButtons();
 }
 
-// --- LISTENER WEBVIEW ---
 function attachWebviewListeners(
   webview,
   isService,
@@ -383,7 +377,6 @@ function attachWebviewListeners(
   webview.addEventListener("did-navigate-in-page", updateNavButtons);
 }
 
-// --- LOGOUT ---
 async function handleLogout() {
   try {
     if (identityModal) {
@@ -394,13 +387,11 @@ async function handleLogout() {
     showScreen("processing");
     await window.electronAPI.logout();
 
-    // Hapus semua webview
-    [
+    const allWebviews = [
       ...tabs.map((t) => t.webview),
       ...Array.from(serviceTabs.values()).map((s) => s.webview),
-    ]
-      .filter((wv) => wv?.parentNode)
-      .forEach((wv) => wv.remove());
+    ];
+    allWebviews.filter((wv) => wv?.parentNode).forEach((wv) => wv.remove());
 
     activeIdentities = [];
     enabledIdentityIds = new Set();
@@ -410,7 +401,7 @@ async function handleLogout() {
     activeServiceTabId = null;
 
     webviewContainer.innerHTML = "";
-    renderTabs(); // akan buat tab baru
+    renderTabs();
     showScreen("authentication");
     console.log("Logout berhasil.");
   } catch (e) {
@@ -420,7 +411,6 @@ async function handleLogout() {
 }
 window.handleLogout = handleLogout;
 
-// --- MODAL IDENTITAS ---
 window.displayIdentityData = function () {
   if (!identityModal || !identityDetailsContent) return;
 
@@ -430,9 +420,8 @@ window.displayIdentityData = function () {
   } else {
     activeIdentities.forEach((id) => {
       const isChecked = enabledIdentityIds.has(id.identity_id);
-      const isDisabled = !isChecked;
       html += `
-        <div class="mb-3 p-3 border rounded ${isDisabled ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start">
+        <div class="mb-3 p-3 border rounded ${!isChecked ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start">
           <div class="flex-1">
             <p class="font-medium text-gray-800">${id.identity_name || "N/A"}</p>
             <p class="text-xs text-gray-500">ID: ${id.identity_id || "N/A"}</p>
@@ -460,22 +449,87 @@ window.displayIdentityData = function () {
   identityModal.classList.add("flex");
 };
 
-window.uploadIdentityFromModal = async function () {
-  console.log("Tombol 'Tambah Identitas' diklik!");
-  const input = document.getElementById("identity-file-input");
-  console.log("Input element:", input);
-  if (!input) {
-    console.error("Element #identity-file-input tidak ditemukan!");
-    return;
-  }
-  input.value = "";
-  input.click();
-  console.log("📁 File picker seharusnya muncul...");
-};
-
 window.toggleIdentityFromModal = function (identityId) {
   toggleIdentity(identityId);
   displayIdentityData();
+};
+
+// --- TAMBAH IDENTITAS DARI MODAL ---
+window.uploadIdentityFromModal = async function () {
+  // Trigger file picker
+  const fileInput = document.getElementById("identity-file-input");
+  if (!fileInput) {
+    console.error("File input tidak ditemukan!");
+    return;
+  }
+
+  // Reset dan buka dialog
+  fileInput.value = "";
+  fileInput.click();
+
+  // Tunggu sampai file dipilih (gunakan Promise + event listener sekali pakai)
+  const filesSelected = new Promise((resolve) => {
+    const handler = (e) => {
+      fileInput.removeEventListener("change", handler);
+      resolve(Array.from(e.target.files));
+    };
+    fileInput.addEventListener("change", handler);
+  });
+
+  const files = await filesSelected;
+  if (files.length === 0) return;
+
+  // Minta password
+  const password = await showPasswordPrompt();
+  if (!password) {
+    fileInput.value = "";
+    return;
+  }
+
+  // Tampilkan indikator proses (opsional: bisa tampilkan di modal)
+  showScreen("processing");
+
+  try {
+    const uploadPromises = files.map(async (file) => {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = arrayBufferToBase64(arrayBuffer);
+      return window.electronAPI.handleIdentityUpload(base64, password); 
+    });
+
+    const results = await Promise.all(uploadPromises);
+    const hasSuccess = results.some((r) => r.success);
+    const allMessages = results
+      .filter((r) => !r.success && r.message)
+      .map((r) => r.message)
+      .join("\n");
+
+    if (hasSuccess) {
+      // Muat ulang sesi
+      const sessionResult = await window.electronAPI.checkSession();
+      if (sessionResult.type === "session-restored") {
+        activeIdentities = sessionResult.payload.identities;
+        enabledIdentityIds = new Set(
+          activeIdentities.map((id) => id.identity_id)
+        );
+        renderSidebar();
+        displayIdentityData(); // Perbarui modal
+        // Tidak perlu pindah layar, tetap di browser
+      } else {
+        throw new Error("Gagal memuat sesi setelah upload.");
+      }
+    } else {
+      handleAuthFailure(allMessages || "Gagal memuat semua file identitas.");
+    }
+  } catch (err) {
+    console.error("Upload dari modal error:", err);
+    handleAuthFailure(`Gagal memproses file: ${err.message}`);
+  } finally {
+    fileInput.value = "";
+    // Kembalikan tampilan ke browser jika sedang di processing
+    if (authScreen.classList.contains("hidden") === false) {
+      showScreen("browser");
+    }
+  }
 };
 
 window.deleteIdentityFromModal = async function (identityId) {
@@ -511,7 +565,7 @@ window.deleteIdentityFromModal = async function (identityId) {
   }
 };
 
-// --- AUTH ---
+// --- UTIL: Konversi ArrayBuffer ke Base64 ---
 function arrayBufferToBase64(buffer) {
   let binary = "";
   const bytes = new Uint8Array(buffer);
@@ -519,47 +573,36 @@ function arrayBufferToBase64(buffer) {
     binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
 }
-// ------------
 
+// --- AUTH LISTENERS ---
 function setupAuthListeners() {
   // --- ENROLLMENT ---
   if (enrollmentForm) {
     enrollmentForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-
       const file = enrollJwtFile.files[0];
-      const passwordInput = document.getElementById("enroll-password");
-      const passwordConfirmInput = document.getElementById(
-        "enroll-password-confirm"
-      );
-
       if (!file) return handleAuthFailure("File JWT harus dipilih.");
-      if (!passwordInput?.value)
-        return handleAuthFailure("Password wajib diisi.");
-      if (passwordInput.value !== passwordConfirmInput?.value) {
-        return handleAuthFailure("Password dan konfirmasi tidak cocok.");
-      }
-      if (passwordInput.value.length < 8) {
+
+      const jwtContent = await file.text();
+      const password = await showPasswordPrompt();
+      if (!password) return;
+      if (password.length < 8)
         return handleAuthFailure("Password minimal 8 karakter.");
-      }
 
       showScreen("processing");
       try {
-        const jwtContent = await file.text();
         const result = await window.electronAPI.handleEnrollment(
           jwtContent,
-          passwordInput.value
+          password
         );
         if (result.success) {
-          authBox.classList.add("hidden");
-          authErrorMessage.classList.add("hidden");
-          const successScreen = document.getElementById("enrollment-success");
+          const modal = document.getElementById("enrollment-success-modal");
           const msgEl = document.getElementById("success-message");
-          if (successScreen && msgEl) {
+          if (modal && msgEl) {
             msgEl.textContent = result.message;
-            successScreen.classList.remove("hidden");
+            modal.classList.remove("hidden");
+            document.body.classList.add("overflow-hidden");
           }
-          showScreen("authentication");
         } else {
           handleAuthFailure(result.message);
         }
@@ -567,25 +610,53 @@ function setupAuthListeners() {
         console.error("Error enrollment:", err);
         handleAuthFailure("Terjadi kesalahan saat enrollment.");
       } finally {
-        // Reset form
         enrollmentForm.reset();
-        if (passwordInput) passwordInput.value = "";
-        if (passwordConfirmInput) passwordConfirmInput.value = "";
       }
     });
   }
 
-  // --- UPLOAD IDENTITY (via dialog di main process) ---
+  // --- UPLOAD IDENTITY: HANYA trigger file input ---
   if (uploadIdentityButton) {
-    uploadIdentityButton.addEventListener("click", async () => {
-      const password = await showPasswordPrompt();
-      if (!password) return;
-      showScreen("processing");
-      try {
-        const result =
-          await window.electronAPI.uploadIdentityWithDialog(password);
-        if (result.success) {
-          activeIdentities = result.identities || [];
+    uploadIdentityButton.addEventListener("click", () => {
+      document.getElementById("identity-file-input").click();
+    });
+  }
+}
+
+// --- EVENT LISTENERS ---
+// --- HANDLE FILE UPLOAD DARI <input> ---
+document
+  .getElementById("identity-file-input")
+  ?.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const password = await showPasswordPrompt();
+    if (!password) {
+      e.target.value = "";
+      return;
+    }
+
+    showScreen("processing");
+
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const arrayBuffer = await file.arrayBuffer();
+        const base64 = arrayBufferToBase64(arrayBuffer);
+        return window.electronAPI.handleIdentityUpload(base64, password);
+      });
+
+      const results = await Promise.all(uploadPromises);
+      const hasSuccess = results.some((r) => r.success);
+      const allMessages = results
+        .filter((r) => !r.success && r.message)
+        .map((r) => r.message)
+        .join("\n");
+
+      if (hasSuccess) {
+        const sessionResult = await window.electronAPI.checkSession();
+        if (sessionResult.type === "session-restored") {
+          activeIdentities = sessionResult.payload.identities;
           enabledIdentityIds = new Set(
             activeIdentities.map((id) => id.identity_id)
           );
@@ -593,32 +664,121 @@ function setupAuthListeners() {
           showScreen("browser");
           if (tabs.length === 0) createBrowserTab("https://www.google.com");
         } else {
-          handleAuthFailure(result.message);
+          throw new Error("Gagal memuat sesi setelah upload.");
         }
-      } catch (err) {
-        console.error("Upload error:", err);
-        handleAuthFailure(err.message || "Gagal memuat identitas.");
+      } else {
+        handleAuthFailure(allMessages || "Gagal memuat semua file identitas.");
       }
-    });
-  }
+    } catch (err) {
+      console.error("Upload error:", err);
+      handleAuthFailure(`Gagal memproses file: ${err.message}`);
+    } finally {
+      e.target.value = "";
+    }
+  });
 
-  // --- Return dari success screen ---
-  const returnBtn = document.getElementById("return-to-login-button");
-  if (returnBtn) {
-    const clone = returnBtn.cloneNode(true);
-    returnBtn.parentNode.replaceChild(clone, returnBtn);
+// --- TUTUP MODAL ENROLLMENT ---
+function setupEnrollmentModalListener() {
+  const closeBtn = document.getElementById("close-success-modal");
+  if (closeBtn) {
+    const clone = closeBtn.cloneNode(true);
+    closeBtn.parentNode.replaceChild(clone, closeBtn);
     clone.addEventListener("click", () => {
-      document.getElementById("enrollment-success")?.classList.add("hidden");
+      const modal = document.getElementById("enrollment-success-modal");
+      if (modal) {
+        modal.classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
+      }
       authBox.classList.remove("hidden");
-      enrollmentForm?.reset();
       authErrorMessage.classList.add("hidden");
+      enrollmentForm?.reset();
+      showScreen("authentication");
     });
   }
 }
 
+// --- NAVIGASI ---
+function handleUrl() {
+  let url = urlInputField.value.trim();
+  if (!url) return;
+  if (!url.startsWith("http://") && !url.startsWith("https://"))
+    url = "http://" + url;
+
+  const tab = tabs[currentTabIndex];
+  if (tab) {
+    tab.url = url;
+    tab.webview.src = url;
+    urlInputField.value = url;
+  }
+}
+
+urlInputField.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !urlInputField.disabled) handleUrl();
+});
+goButton.addEventListener("click", () => {
+  if (!goButton.disabled) handleUrl();
+});
+
+searchButton.addEventListener("click", () => {
+  const url = "https://www.google.com";
+  const tab = tabs[currentTabIndex];
+  if (tab) {
+    tab.url = url;
+    tab.webview.src = url;
+    urlInputField.value = url;
+  }
+  activeServiceTabId = null;
+  renderSidebar();
+});
+
+backButton.addEventListener("click", () => {
+  const webview = activeServiceTabId
+    ? serviceTabs.get(activeServiceTabId)?.webview
+    : tabs[currentTabIndex]?.webview;
+  if (webview) webview.goBack();
+});
+forwardButton.addEventListener("click", () => {
+  const webview = activeServiceTabId
+    ? serviceTabs.get(activeServiceTabId)?.webview
+    : tabs[currentTabIndex]?.webview;
+  if (webview) webview.goForward();
+});
+reloadButton.addEventListener("click", () => {
+  const webview = activeServiceTabId
+    ? serviceTabs.get(activeServiceTabId)?.webview
+    : tabs[currentTabIndex]?.webview;
+  if (webview) webview.reload();
+});
+
+newTabButton.addEventListener("click", () => createBrowserTab());
+
+// --- MODAL & SIDEBAR ---
+if (identityButton)
+  identityButton.addEventListener("click", displayIdentityData);
+if (closeModalButton)
+  closeModalButton.addEventListener("click", () => {
+    identityModal.classList.add("hidden");
+    identityModal.classList.remove("flex");
+  });
+if (identityModal)
+  identityModal.addEventListener("click", (e) => {
+    if (e.target === identityModal) {
+      identityModal.classList.add("hidden");
+      identityModal.classList.remove("flex");
+    }
+  });
+if (collapseBtn)
+  collapseBtn.addEventListener("click", () => {
+    sidebar.classList.toggle("collapsed");
+    collapseBtn.classList.toggle("rotate-180");
+    sidebarContent.classList.toggle("hidden");
+  });
+
 // --- INIT ---
 async function init() {
   setupAuthListeners();
+  setupEnrollmentModalListener(); // 👈 penting!
+
   try {
     const result = await window.electronAPI.checkSession();
     if (result.type === "session-restored") {
@@ -658,117 +818,3 @@ async function init() {
 }
 
 document.addEventListener("DOMContentLoaded", init);
-
-// --- EVENT LISTENER ---
-// document.getElementById("identity-file-input")?.addEventListener("change", async (e) => {const files = Array.from(e.target.files);
-//     if (files.length === 0) return;
-
-//     showScreen("processing");
-
-//     try {
-//       // Konversi semua file ke Base64
-//       const base64Array = await Promise.all(
-//         files.map(async (file) => {
-//           if (file.size === 0) throw new Error(`File "${file.name}" kosong.`);
-//           const arrayBuffer = await file.arrayBuffer();
-//           return arrayBufferToBase64(arrayBuffer);
-//         })
-//       );
-
-//       // Kirim ke main process
-//       const result = await window.electronAPI.handleIdentityUpload(base64Array);
-
-//       if (result.success) {
-//         activeIdentities = result.identities || [];
-//         enabledIdentityIds = new Set(
-//           activeIdentities.map((id) => id.identity_id)
-//         );
-//         renderSidebar();
-//         displayIdentityData(); // Perbarui modal
-//       } else {
-//         handleAuthFailure(result.message);
-//       }
-//     } catch (err) {
-//       console.error("Upload error:", err);
-//       handleAuthFailure(`Gagal membaca file: ${err.message}`);
-//     } finally {
-//       e.target.value = "";
-//       showScreen("browser"); // Kembali ke tampilan browser
-//     }
-// });
-
-urlInputField.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !urlInputField.disabled) handleUrl();
-});
-goButton.addEventListener("click", () => {
-  if (!goButton.disabled) handleUrl();
-});
-
-function handleUrl() {
-  let url = urlInputField.value.trim();
-  if (!url) return;
-  if (!url.startsWith("http://") && !url.startsWith("https://"))
-    url = "http://" + url;
-
-  const tab = tabs[currentTabIndex];
-  if (tab) {
-    tab.url = url;
-    tab.webview.src = url;
-    urlInputField.value = url;
-  }
-}
-
-searchButton.addEventListener("click", () => {
-  const url = "https://www.google.com";
-  const tab = tabs[currentTabIndex];
-  if (tab) {
-    tab.url = url;
-    tab.webview.src = url;
-    urlInputField.value = url;
-  }
-  activeServiceTabId = null;
-  renderSidebar();
-});
-
-backButton.addEventListener("click", () => {
-  const webview = activeServiceTabId
-    ? serviceTabs.get(activeServiceTabId)?.webview
-    : tabs[currentTabIndex]?.webview;
-  if (webview) webview.goBack();
-});
-forwardButton.addEventListener("click", () => {
-  const webview = activeServiceTabId
-    ? serviceTabs.get(activeServiceTabId)?.webview
-    : tabs[currentTabIndex]?.webview;
-  if (webview) webview.goForward();
-});
-reloadButton.addEventListener("click", () => {
-  const webview = activeServiceTabId
-    ? serviceTabs.get(activeServiceTabId)?.webview
-    : tabs[currentTabIndex]?.webview;
-  if (webview) webview.reload();
-});
-
-newTabButton.addEventListener("click", () => createBrowserTab());
-
-// Modal & Sidebar
-if (identityButton)
-  identityButton.addEventListener("click", displayIdentityData);
-if (closeModalButton)
-  closeModalButton.addEventListener("click", () => {
-    identityModal.classList.add("hidden");
-    identityModal.classList.remove("flex");
-  });
-if (identityModal)
-  identityModal.addEventListener("click", (e) => {
-    if (e.target === identityModal) {
-      identityModal.classList.add("hidden");
-      identityModal.classList.remove("flex");
-    }
-  });
-if (collapseBtn)
-  collapseBtn.addEventListener("click", () => {
-    sidebar.classList.toggle("collapsed");
-    collapseBtn.classList.toggle("rotate-180");
-    sidebarContent.classList.toggle("hidden");
-  });

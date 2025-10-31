@@ -13,13 +13,15 @@ const tabsContainer = document.getElementById("tabs-container");
 const serviceTabsContainer = document.getElementById("service-tabs-container");
 const identityButton = document.getElementById("identity-button");
 const identityModal = document.getElementById("identity-modal");
-const identityDetailsContent = document.getElementById(
-  "identity-details-content"
-);
+const identityDetailsContent = document.getElementById("identity-details-content");
 const closeModalButton = document.getElementById("close-modal-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarContent = document.getElementById("sidebar-content");
 const collapseBtn = document.getElementById("collapse-btn");
+const logModal = document.getElementById("log-modal");
+const logContent = document.getElementById("log-content");
+const closeLogModalButton = document.getElementById("close-log-modal");
+const downloadLogButton = document.getElementById("download-log");
 
 // --- REFERENSI ELEMEN AUTH ---
 const authScreen = document.getElementById("auth-screen");
@@ -45,6 +47,20 @@ let activeServiceTabId = null;
 let serviceTabs = new Map();
 
 // --- UTILITAS ---
+function handleUrl() {
+  let url = urlInputField.value.trim();
+  if (!url) return;
+  if (!url.startsWith("http://") && !url.startsWith("https://"))
+    url = "http://" + url;
+
+  const tab = tabs[currentTabIndex];
+  if (tab) {
+    tab.url = url;
+    tab.webview.src = url;
+    urlInputField.value = url;
+  }
+}
+
 function showScreen(screen) {
   const browserContainer = document.querySelector(".app-container");
   browserContainer.classList.toggle("hidden", screen !== "browser");
@@ -341,26 +357,36 @@ function attachWebviewListeners(
   identityId = "",
   serviceName = ""
 ) {
-  webview.addEventListener("did-navigate", (e) => {
-    if (e.url.startsWith("data:") || e.url.startsWith("ziti-")) return;
+  const updateUrlField = (url) => {
+    // Jangan update untuk URL internal/data
+    if (url.startsWith("data:") || url.startsWith("ziti-")) return;
 
     if (isService) {
       const tabId = getServiceTabId(identityId, serviceName);
       if (activeServiceTabId === tabId) {
-        urlInputField.value = e.url;
+        urlInputField.value = url;
       }
     } else {
       const tab = tabs.find((t) => t.webview === webview);
       if (tab) {
-        tab.url = e.url;
+        tab.url = url;
         if (
           activeServiceTabId === null &&
           tabs[currentTabIndex]?.webview === webview
         ) {
-          urlInputField.value = e.url;
+          urlInputField.value = url;
         }
       }
     }
+  };
+
+  webview.addEventListener("did-navigate", (e) => {
+    updateUrlField(e.url);
+  });
+
+  webview.addEventListener("did-navigate-in-page", (e) => {
+    // Gunakan e.url (bukan e.newURL) — di Electron, `url` sudah benar
+    updateUrlField(e.url);
   });
 
   webview.addEventListener("page-title-updated", (e) => {
@@ -374,7 +400,46 @@ function attachWebviewListeners(
   });
 
   webview.addEventListener("load-commit", updateNavButtons);
-  webview.addEventListener("did-navigate-in-page", updateNavButtons);
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++)
+    binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function showProxyLog() {
+  try {
+    const logText = await window.electronAPI.getProxyLogContent();
+    logContent.textContent = logText;
+    logModal.classList.remove("hidden");
+    logModal.classList.add("flex");
+    logContent.scrollTop = logContent.scrollHeight; // Scroll ke bawah
+
+  } catch (err) {
+    console.error("Gagal membaca log:", err);
+    alert("Tidak bisa memuat log proxy.");
+  }
+}
+
+async function downloadProxyLog() {
+  try {
+    const content = await window.electronAPI.getProxyLogContent();
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ziti-proxy.log";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Gagal download log:", err);
+    alert("Tidak bisa mengunduh log.");
+  }
 }
 
 async function handleLogout() {
@@ -409,6 +474,7 @@ async function handleLogout() {
     handleAuthFailure("Gagal logout. Silakan mulai ulang aplikasi.");
   }
 }
+
 window.handleLogout = handleLogout;
 
 window.displayIdentityData = function () {
@@ -531,7 +597,6 @@ window.uploadIdentityFromModal = async function () {
     }
   }
 };
-
 window.deleteIdentityFromModal = async function (identityId) {
   if (!confirm("Yakin ingin menghapus identitas ini?")) return;
 
@@ -564,15 +629,6 @@ window.deleteIdentityFromModal = async function (identityId) {
     alert("Gagal menghapus identitas. Coba lagi.");
   }
 };
-
-// --- UTIL: Konversi ArrayBuffer ke Base64 ---
-function arrayBufferToBase64(buffer) {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++)
-    binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
 
 // --- AUTH LISTENERS ---
 function setupAuthListeners() {
@@ -624,9 +680,7 @@ function setupAuthListeners() {
 }
 
 // --- EVENT LISTENERS ---
-// --- HANDLE FILE UPLOAD DARI <input> ---
-document
-  .getElementById("identity-file-input")
+document.getElementById("identity-file-input")
   ?.addEventListener("change", async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -677,7 +731,6 @@ document
     }
   });
 
-// --- TUTUP MODAL ENROLLMENT ---
 function setupEnrollmentModalListener() {
   const closeBtn = document.getElementById("close-success-modal");
   if (closeBtn) {
@@ -694,21 +747,6 @@ function setupEnrollmentModalListener() {
       enrollmentForm?.reset();
       showScreen("authentication");
     });
-  }
-}
-
-// --- NAVIGASI ---
-function handleUrl() {
-  let url = urlInputField.value.trim();
-  if (!url) return;
-  if (!url.startsWith("http://") && !url.startsWith("https://"))
-    url = "http://" + url;
-
-  const tab = tabs[currentTabIndex];
-  if (tab) {
-    tab.url = url;
-    tab.webview.src = url;
-    urlInputField.value = url;
   }
 }
 
@@ -752,6 +790,8 @@ reloadButton.addEventListener("click", () => {
 
 newTabButton.addEventListener("click", () => createBrowserTab());
 
+
+
 // --- MODAL & SIDEBAR ---
 if (identityButton)
   identityButton.addEventListener("click", displayIdentityData);
@@ -773,6 +813,29 @@ if (collapseBtn)
     collapseBtn.classList.toggle("rotate-180");
     sidebarContent.classList.toggle("hidden");
   });
+// --- LOG MODAL ---
+const logButton = document.getElementById("log-button");
+if (logButton) {
+  logButton.addEventListener("click", showProxyLog);
+}
+if (closeLogModalButton) {
+  closeLogModalButton.addEventListener("click", () => {
+    logModal.classList.add("hidden");
+    logModal.classList.remove("flex");
+  });
+}
+if (logModal) {
+  logModal.addEventListener("click", (e) => {
+    if (e.target === logModal) {
+      logModal.classList.add("hidden");
+      logModal.classList.remove("flex");
+    }
+  });
+}
+if (downloadLogButton) {
+  downloadLogButton.addEventListener("click", downloadProxyLog);
+}
+
 
 // --- INIT ---
 async function init() {
