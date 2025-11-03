@@ -78,6 +78,18 @@ function decryptStringWithPassword(encryptedBase64, password) {
   return decrypted;
 }
 
+// --- FUNGSI: Dapatkan path ke zitihttproxy.exe ---
+function getProxyPath() {
+  if (app.isPackaged) {
+    // Production: file berada di resources/assets/ (di luar app.asar)
+    return path.join(process.resourcesPath, "assets", "zitihttproxy.exe");
+  } else {
+    // Development: cari dari folder proyek (pakai getProjectRoot)
+    return path.join(getProjectRoot(), "assets", "zitihttproxy.exe");
+  }
+}
+
+// --- FUNGSI: Dapatkan root proyek (hanya untuk development) ---
 function getProjectRoot() {
   let dir = __dirname;
   const fsSync = require("fs");
@@ -116,7 +128,7 @@ function startProxy() {
     return;
   }
 
-  const proxyPath = path.join(getProjectRoot(), "assets", "zitihttproxy.exe");
+  const proxyPath = getProxyPath();
   const fsSync = require("fs");
   if (!fsSync.existsSync(proxyPath)) {
     const msg = `File proxy tidak ditemukan di: ${proxyPath}`;
@@ -129,7 +141,7 @@ function startProxy() {
   try {
     proxyProcess = spawn(proxyPath, [], {
       detached: false,
-      stdio: ["ignore", "pipe", "pipe"], // <-- tangkap output!
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     proxyProcess.stdout.on("data", (data) => {
@@ -163,7 +175,6 @@ function startProxy() {
     console.log(msg);
     logStream?.write(`[INFO] ${msg}\n`);
     mainWindow?.webContents.send("proxy-log-update", msg);
-
   } catch (err) {
     const msg = `Error saat memulai proxy: ${err.message}`;
     console.error(msg);
@@ -187,12 +198,21 @@ function stopProxy() {
 }
 
 // --- FUNGSI UTILITAS API ---
-function makeApiRequest(method, url, data = null, contentType = "application/json") {
+function makeApiRequest(
+  method,
+  url,
+  data = null,
+  contentType = "application/json"
+) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     let postData = data;
 
-    if (contentType === "application/json" && data && typeof data === "object") {
+    if (
+      contentType === "application/json" &&
+      data &&
+      typeof data === "object"
+    ) {
       postData = JSON.stringify(data);
     }
 
@@ -265,7 +285,9 @@ async function checkSession() {
 
     if (identities.length > 0) {
       if (mainWindow) {
-        await mainWindow.webContents.session.setProxy({ proxyRules: ZITI_PROXY_ADDRESS });
+        await mainWindow.webContents.session.setProxy({
+          proxyRules: ZITI_PROXY_ADDRESS,
+        });
       }
       return { type: "session-restored", payload: { identities } };
     } else {
@@ -283,20 +305,29 @@ async function checkSession() {
 // --- IPC HANDLERS ---
 ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
   try {
-    if (!jwtContent || typeof jwtContent !== "string" || !jwtContent.includes(".")) {
+    if (
+      !jwtContent ||
+      typeof jwtContent !== "string" ||
+      !jwtContent.includes(".")
+    ) {
       throw new Error("JWT tidak valid.");
     }
     if (!password || typeof password !== "string" || password.length < 8) {
       throw new Error("Password minimal 8 karakter.");
     }
 
-    const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, { jwt: jwtContent });
+    const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
+      jwt: jwtContent,
+    });
     if (!newIdentityData || typeof newIdentityData.id !== "object") {
       throw new Error("Respons /enroll tidak valid.");
     }
 
     const identityJsonString = JSON.stringify(newIdentityData);
-    const encryptedBase64 = encryptStringWithPassword(identityJsonString, password);
+    const encryptedBase64 = encryptStringWithPassword(
+      identityJsonString,
+      password
+    );
     const fallbackName = `ziti-identity-${Date.now()}`;
     const jwtExtractedName = extractNameFromJwt(jwtContent);
     const fileName = `${jwtExtractedName || fallbackName}`;
@@ -314,7 +345,10 @@ ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
       console.log(`Identity disimpan ke: ${filePath}`);
     }
 
-    return { success: true, message: `File identitas disimpan sebagai "${fileName}.json.enc"` };
+    return {
+      success: true,
+      message: `File identitas disimpan sebagai "${fileName}.json.enc"`,
+    };
   } catch (e) {
     console.error("Pendaftaran Gagal:", e);
     let msg = e.message;
@@ -327,31 +361,49 @@ ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
   }
 });
 
-ipcMain.handle("handle-identity-upload", async (event, base64Data, password) => {
-  if (!base64Data || typeof base64Data !== "string") {
-    return { success: false, message: "Data file tidak valid." };
-  }
-  if (!password || typeof password !== "string") {
-    return { success: false, message: "Password diperlukan." };
-  }
+ipcMain.handle(
+  "handle-identity-upload",
+  async (event, base64Data, password) => {
+    if (!base64Data || typeof base64Data !== "string") {
+      return { success: false, message: "Data file tidak valid." };
+    }
+    if (!password || typeof password !== "string") {
+      return { success: false, message: "Password diperlukan." };
+    }
 
-  try {
-    const decryptedJsonString = decryptStringWithPassword(base64Data, password);
-    if (!decryptedJsonString) throw new Error("File terdekripsi kosong.");
+    try {
+      const decryptedJsonString = decryptStringWithPassword(
+        base64Data,
+        password
+      );
+      if (!decryptedJsonString) throw new Error("File terdekripsi kosong.");
 
-    await mainWindow.webContents.session.setProxy({ proxyRules: ZITI_PROXY_ADDRESS });
-    await makeApiRequest("POST", ZITI_IDENTITY_URL, decryptedJsonString, "application/json");
-    return { success: true };
-  } catch (e) {
-    console.error("Gagal proses identitas:", e);
-    return { success: false, message: e.message || "Gagal memproses file identitas." };
+      await mainWindow.webContents.session.setProxy({
+        proxyRules: ZITI_PROXY_ADDRESS,
+      });
+      await makeApiRequest(
+        "POST",
+        ZITI_IDENTITY_URL,
+        decryptedJsonString,
+        "application/json"
+      );
+      return { success: true };
+    } catch (e) {
+      console.error("Gagal proses identitas:", e);
+      return {
+        success: false,
+        message: e.message || "Gagal memproses file identitas.",
+      };
+    }
   }
-});
+);
 
 ipcMain.handle("logout", async () => {
   if (mainWindow) {
     try {
-      await mainWindow.webContents.session.setProxy({ proxyRules: "direct://" });
+      await mainWindow.webContents.session.setProxy({
+        proxyRules: "direct://",
+      });
       await mainWindow.webContents.session.clearStorageData();
     } catch (error) {
       console.error("Gagal reset proxy/session:", error);
@@ -364,7 +416,10 @@ ipcMain.handle("logout", async () => {
       for (const coll of response.services_collections) {
         const id = coll.identity_id?.trim();
         if (id) {
-          await makeApiRequest("DELETE", `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`);
+          await makeApiRequest(
+            "DELETE",
+            `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`
+          );
         }
       }
     }
@@ -394,7 +449,10 @@ ipcMain.handle("get-ziti-identity-data", async () => {
 ipcMain.handle("delete-identity", async (event, identityId) => {
   if (!identityId) throw new Error("identity_id diperlukan");
   try {
-    await makeApiRequest("DELETE", `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`);
+    await makeApiRequest(
+      "DELETE",
+      `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`
+    );
     return { success: true };
   } catch (error) {
     console.error("Gagal hapus identitas:", error);
@@ -414,7 +472,6 @@ ipcMain.handle("proxy:get-log-content", async () => {
   }
   return await fs.readFile(logFilePath, "utf8");
 });
-
 
 // --- APP LIFECYCLE ---
 const createWindow = () => {
@@ -446,9 +503,9 @@ const createWindow = () => {
 };
 
 app.whenReady().then(() => {
-  setupLogFile();       
-  startProxy();         
-  createWindow();       
+  setupLogFile();
+  startProxy();
+  createWindow();
 });
 
 app.on("activate", () => {
