@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ziti Browser</title>
     <!-- Memuat Tailwind CSS untuk styling modern -->
-    <script src="https://cdn.tailwindcss.com  "></script>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
 
   <body>
@@ -17,97 +17,45 @@
         class="h-12 bg-white flex items-center px-4 border-b border-gray-300 flex-shrink-0 space-x-2"
       >
         <!-- Kontainer Tombol Navigasi -->
-        <div id="button-container" class="flex items-center space-x-2">
+        <div id="button-container" class="flex items-center space-x-1">
           <!-- back-button -->
           <button
             id="back-button"
             title="Back"
-            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-              stroke="currentColor"
-              class="w-4 h-4"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 19.5L8.25 12l7.5-7.5"
-              />
-            </svg>
+            <img src="/icon/arrow.png" alt="" class="w-3 h-3" />
           </button>
           <!-- forward-button -->
           <button
             id="forward-button"
             title="Forward"
-            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-              stroke="currentColor"
-              class="w-4 h-4"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M8.25 4.5l7.5 7.5-7.5 7.5"
-              />
-            </svg>
+            <img src="/icon/right-arrow.png" alt="" class="w-3 h-3" />
           </button>
           <!-- reload-button -->
           <button
             id="reload-button"
             title="Reload"
-            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="2"
-              stroke="currentColor"
-              class="w-4 h-4"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
-              />
-            </svg>
+            <img src="/icon/refresh-page.png" alt="" class="w-3 h-3" />
           </button>
           <!-- home-button -->
           <button
             id="search-button"
             title="Home"
-            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none"
+            class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-4 h-4"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
-              />
-            </svg>
+            <img src="/icon/home.png" alt="" class="w-3 h-3" />
           </button>
         </div>
 
         <!-- Address Bar (URL Input) -->
         <form class="flex-grow flex items-center mx-4" onsubmit="return false;">
           <div
-            class="bg-gray-100 h-8 rounded-full flex items-center w-full border border-gray-300"
+            class="bg-gray-50 h-7 rounded-full flex items-center w-full border border-gray-300"
           >
             <input
               id="url-input"
@@ -120,28 +68,15 @@
         <button id="go" class="hidden">go</button>
 
         <!-- Kontainer Tombol Kanan -->
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center space-x-1">
           <!-- LOG BUTTON -->
           <div>
             <button
               id="log-button"
               title="Tampilkan Log Proxy"
-              class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none transition-colors"
+              class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none transition-colors"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="2"
-                stroke="currentColor"
-                class="w-5 h-5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
+              <img src="/icon/log.png" alt="" class="w-4 h-4" />
             </button>
           </div>
 
@@ -149,21 +84,10 @@
           <div class="flex items-center space-x-2">
             <button
               id="identity-button"
-              class="flex items-center justify-center w-8 h-8 rounded-full text-blue-700 bg-blue-200 hover:bg-blue-300 focus:outline-none"
+              class="flex items-center justify-center w-8 h-8 rounded-full text-gray-700 hover:bg-gray-300 focus:outline-none"
               title="Tampilkan Detail Identity"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                class="w-5 h-5"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.73 0-5.45-.608-7.962-1.7a.75.75 0 01-.438-.695z"
-                  clip-rule="evenodd"
-                />
-              </svg>
+              <img src="/icon/profile.png" alt="" class="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -172,28 +96,12 @@
       <!-- Main Content Area -->
       <div class="flex flex-grow overflow-hidden">
         <!-- SIDEBAR -->
-        <aside
-          id="sidebar"
-          class="sidebar w-64 bg-white flex flex-col border-r border-gray-300 z-10 p-4"
-        >
+        <aside id="sidebar" class="sidebar w-10 bg-white flex flex-col p-4">
           <button
             id="collapse-btn"
-            class="self-end mb-4 flex items-center justify-center w-6 h-6 rounded-full text-gray-700 bg-gray-200 hover:bg-gray-300 focus:outline-none transition-transform duration-300 transform"
+            class="left-0 mb-4 bg flex items-center justify-center w-6 h-6 rounded-full transition-transform duration-300 transform"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-4 h-4"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 19.5L8.25 12l7.5-7.5"
-              />
-            </svg>
+            <img src="icon/sidebar.svg" alt="" class="w-5 h-5" />
           </button>
 
           <div id="sidebar-content" class="flex-grow overflow-y-auto space-y-4">
@@ -206,20 +114,7 @@
                 id="new-tab-button"
                 class="flex items-center w-full mt-2 px-2 py-2 rounded-md hover:bg-gray-200 transition-colors duration-200 space-x-2"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke-width="1.5"
-                  stroke="currentColor"
-                  class="w-5 h-5 text-gray-500"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M12 4.5v15m7.5-7.5h-15"
-                  />
-                </svg>
+                <img src="/icon/plus.svg" alt="" class="w-5 h-5" />
                 <span class="text-sm">Tab Baru</span>
               </button>
             </div>
@@ -234,46 +129,44 @@
 
         <!-- Content Area -->
         <main id="main-content" class="main-content flex-grow bg-gray-200">
-          <div id="webview-container" class="w-full h-full"></div>
+          <div
+            id="webview-container"
+            class="w-full h-full border rounded-full"
+          ></div>
         </main>
       </div>
     </div>
     <!-- END WRAPPER UTAMA BROWSER -->
 
-    <!-- Identity Modal -->
+    <!-- Identity Modal (tampilan dalam browser)-->
     <div
       id="identity-modal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
     >
       <div
-        class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col"
+        class="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col"
       >
         <!-- Header -->
-        <div class="p-4 border-b">
+        <div class="p-4">
           <h3 class="font-bold text-gray-900">IDENTITAS AKTIF</h3>
         </div>
 
         <!-- Scrollable Content -->
-        <div id="identity-details-content" class="p-4 overflow-y-auto flex-1">
+        <div id="identity-details-content" class="p-4 overflow-y-auto flex-1 rounded-xl">
           <!-- Konten diisi oleh JS -->
         </div>
 
         <!-- Footer (tombol tetap di bawah, tidak ikut scroll) -->
-        <div class="p-4 border-t bg-gray-50">
-          <button
-            type="button"
-            onclick="uploadIdentityFromModal()"
-            class="w-full py-2 mb-2 bg-gray-500 text-white rounded hover:bg-gray-700"
-          >
-            Tambah Identitas
-          </button>
+        <div class="p-4 bg-gray-50 rounded-xl">
           <button
             onclick="handleLogout()"
-            class="w-full py-2 bg-red-600 text-white rounded"
+            class="w-full mb-1 py-2 px-4 rounded-xl text-white bg-red-600 hover:bg-red-700 active:bg-red-800 font-medium flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
             id="logout-all-button"
           >
-            Logout Semua Identitas
+            <img src="/icon/logout-white.svg" alt="" class="w-6 h-6 mr-1" />
+            Logout
           </button>
+        </div>
         </div>
       </div>
     </div>
@@ -281,85 +174,184 @@
     <!-- WRAPPER AUTH SCREEN -->
     <div
       id="auth-screen"
-      class="fixed inset-0 bg-gray-50 flex items-center justify-center z-50 p-4"
+      class="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center z-50 p-4 border-2 border-gray-300"
     >
-      <div
-        id="auth-box"
-        class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md transition-all duration-300"
-      >
-        <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">
-          OpenZiti Identity
-        </h2>
-
-        <!-- Elemen untuk Menampilkan Pesan Error -->
-        <div
-          id="auth-error-message"
-          class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
-          role="alert"
+      <!-- Glass-like modal container -->
+      <div class="w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+        <!-- Auth Box (Initial/Empty) -->
+        <div id="auth-box"
+          class="bg-white p-6 sm:p-8 rounded-2xl   border border-gray-300 transition-all duration-300"
         >
-          <!-- Pesan error akan muncul di sini -->
-        </div>
-
-        <p class="text-sm text-gray-600 mb-6 text-center">
-          Untuk memulai, unggah file identitas terenkripsi Anda atau enroll file
-          token JWT baru.
-        </p>
-
-        <!-- Tombol untuk Upload Identity -->
-        <button
-          id="upload-identity-button"
-          class="w-full mb-6 py-3 px-4 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-medium flex items-center justify-center"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 mr-2"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          Unggah File Identitas (.json.enc)
-        </button>
-
-        <div class="relative flex py-3 items-center">
-          <div class="flex-grow border-t border-gray-300"></div>
-          <span class="flex-shrink mx-4 text-gray-400 text-sm">ATAU</span>
-          <div class="flex-grow border-t border-gray-300"></div>
-        </div>
-
-        <!-- Form Enrollment (versi baru) -->
-        <form id="enrollment-form">
-          <p class="text-sm text-gray-600 mb-4 text-center">
-            Enroll file token (.jwt) untuk membuat identitas baru.<br />
+          <h2 class="text-2xl font-bold text-gray-900 mb-2 text-center">
+            Ziti Browser
+          </h2>
+          <p class="text-sm text-gray-500 mb-6 text-center">
+            Selamat datang di Ziti Browser! Silakan unggah identitas Anda untuk
+            mengakses jaringan Ziti.
           </p>
-          <div class="mb-6">
-            <label
-              for="enroll-jwt-file"
-              class="block text-sm font-medium text-gray-700"
-            >
-              Pilih File JWT
-            </label>
-            <input
-              type="file"
-              id="enroll-jwt-file"
-              accept=".jwt"
-              required
-              class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-            />
+
+          <div
+            id="auth-error-message"
+            class="hidden bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-5"
+            role="alert"
+          ></div>
+
+          <div
+            id="initial-setup-message"
+            class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-4 rounded-lg mb-5 text-sm"
+          >
+            <p class="font-medium mb-2">Langkah pertama Anda:</p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>
+                Unggah file identitas
+                <code class="bg-blue-100 px-1.5 py-0.5 rounded text-xs"
+                  >.json</code
+                >, atau
+              </li>
+              <li>
+                Enroll menggunakan token JWT
+                <code class="bg-blue-100 px-1.5 py-0.5 rounded text-xs"
+                  >.jwt</code
+                >
+              </li>
+            </ul>
           </div>
 
-          <!-- Tombol Enroll tetap ada, tapi tidak ada input password di sini -->
-          <button
-            type="submit"
-            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+          <div
+            id="empty-vault-message"
+            class="hidden bg-amber-50 border border-amber-200 text-amber-700 px-4 py-4 rounded-lg mb-5 text-sm text-center"
           >
-            Enroll & Simpan File
+            <p class="font-medium">Vault masih kosong.</p>
+            <p class="mt-1">
+              Tambahkan identitas untuk mulai menggunakan Ziti Browser.
+            </p>
+          </div>
+
+          <button
+            id="upload-identity-button"
+            class="w-full mb-5 py-3 px-4 rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 font-medium flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+          >
+            <img src="/icon/upload.svg" alt="" class="w-5 h-5 mr-2" />
+            Unggah File Identitas (.json)
           </button>
-        </form>
+
+          <div class="relative flex py-3 items-center">
+            <div class="flex-grow border-t border-gray-200"></div>
+            <span class="flex-shrink mx-3 text-gray-400 text-sm font-medium"
+              >ATAU</span
+            >
+            <div class="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          <form id="enrollment-form" class="mt-5">
+            <div class="mb-4">
+              <label
+                for="enroll-jwt-file"
+                class="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Enroll Token JWT (.jwt)
+              </label>
+              <input
+                multiple
+                type="file"
+                id="enroll-jwt-file"
+                accept=".jwt"
+                class="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:transition-colors file:cursor-pointer focus:outline-none"
+              />
+            </div>
+            <button
+              type="submit"
+              class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+            >
+              Enroll & Simpan Identitas
+            </button>
+          </form>
+        </div>
+
+        <!-- Identity List Screen (sudah ada identitas di vault) -->
+        <div id="identity-list-screen"
+          class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-gray-200 mt-5 flex flex-col overflow-hidden"
+        >
+          <h2 class="text-2xl font-bold text-gray-900 mb-2 text-center">
+            Pilih Identitas
+          </h2>
+
+          <!-- Scrollable area -->
+          <div
+            id="identity-list-content"
+            class="flex-grow overflow-y-auto max-h-[300px] px-1 py-2 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 rounded-lg"
+          >
+            <!-- Identitas akan di-render oleh JavaScript -->
+          </div>
+
+          <!-- Fixed action bar -->
+          <div class="mt-4 pt-4 border-t border-gray-100 space-y-3">
+            <button
+              id="login-btn"
+              onclick="handleLoginSelection()"
+              disabled
+              class="w-full py-3 px-4 bg-green-600 text-white rounded-xl opacity-50 cursor-not-allowed font-medium shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center gap-3"
+            >
+              <img src="/icon/select.svg" alt="" class="w-5 h-5" />
+              Pilih Identitas
+            </button>
+
+            <button
+              onclick="showUploadIdentityDialog()"
+              class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-3"
+            >
+              <img src="/icon/file.svg" alt="" class="w-5 h-5" />
+              Tambah Identitas Baru
+            </button>
+
+            <button
+              onclick="RemoveIdentityFromVault()"
+              class="w-full py-3 px-4 bg-red-600 text-white rounded-xl hover:bg-red-700 active:bg-red-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center justify-center gap-3"
+            >
+              <img src="/icon/trash.svg" alt="" class="w-5 h-5" />
+              Hapus Identitas
+            </button>
+
+            <button
+              onclick="handleLogout()"
+              class="w-full py-3 px-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 active:bg-gray-900 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center justify-center gap-3"
+            >
+              <img src="/icon/lock.svg" alt="" class="w-5 h-5" />
+              Kunci Vault (Logout)
+            </button>
+          </div>
+        </div>
+
+        <!-- Vault Password Screen -->
+<div id="vault-password-screen" class="hidden flex flex-col items-center justify-center min-h-screen p-4">
+  <div class="w-full max-w-md bg-white p-6 rounded-xl shadow-2xl">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Masukkan Password</h2>
+    <div>
+      <p class="text-sm text-gray-500 mb-6 text-left">
+            Anda sudah memiliki identitas yang tersimpan, silahkan masukkan password untuk melanjutkan! 
+          </p>
+    </div>
+    <div class="relative mb-4">
+      <input
+        type="password"
+        id="vault-password-input"
+        placeholder="Password"
+        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        autofocus
+      />
+      <button id="toggle-vault-password-visibility" class="absolute right-3 top-2.5 text-gray-500">
+        <img id="vault-eye-icon" src="/icon/eye.svg" class="w-5 h-5" />
+        <img id="vault-eye-off-icon" src="/icon/eye-off.svg" class="w-5 h-5 hidden" />
+      </button>
+    </div>
+    <div class="text-red-500 text-sm h-5 mb-4" id="vault-password-input-error"></div>
+    <div class="flex justify-end space-x-2">
+      <!-- <button id="vault-password-cancel" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md">Batal</button> -->
+      <button id="vault-password-submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Lanjutkan</button>
+    </div>
+  </div>
+</div>
+
       </div>
     </div>
     <!-- END WRAPPER AUTH SCREEN -->
@@ -409,29 +401,39 @@
 
     <!-- Hidden file input for identity upload -->
     <input
-      type="file"
       id="identity-file-input"
-      accept=".json.enc"
+      type="file"
+      accept=".json"
       multiple
       style="display: none"
     />
 
     <!-- Modal Input Password -->
-    <div
-      id="password-modal"
+    <div id="password-modal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
     >
       <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
         <h3 class="text-lg font-medium text-gray-900 mb-4">
           Masukkan Password
         </h3>
-        <input
-          type="password"
-          id="password-input"
-          placeholder="Password file identitas"
-          class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          autofocus
-        />
+        <div class="relative">
+          <input
+            type="password"
+            id="password-input"
+            placeholder="Password file identitas"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            autofocus
+          />
+          <button
+            type="button"
+            id="toggle-password-visibility"
+            class="absolute right-3 top-3 text-gray-500 hover:text-indigo-600 focus:outline-none"
+            aria-label="Toggle password visibility"
+          >
+            <img id="eye-icon" src="/icon/eye.svg" alt="" class="w-5 h-5" />
+            <img id="eye-off-icon" src="/icon/eye-off.svg" alt="" class="w-5 h-5 hidden"/>
+          </button>
+        </div>
         <div class="flex justify-end space-x-2">
           <button
             id="password-cancel"
@@ -441,7 +443,7 @@
           </button>
           <button
             id="password-submit"
-            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
           >
             OK
           </button>
@@ -450,42 +452,39 @@
     </div>
 
     <!-- Modal Proxy Log -->
-    <div
-      id="log-modal"
+    <div id="log-modal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
     >
       <div
         class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col"
       >
-        <div class="flex justify-between items-center px-6 pt-5 pb-3 border-b">
+        <div class="flex justify-between items-center px-6 pt-5 pb-3">
           <h3 class="text-lg font-semibold text-gray-900">Proxy Log</h3>
         </div>
 
-        <div class="flex-1 overflow-hidden px-6 py-4">
-          <pre
-            id="log-content"
-            class="bg-gray-50 p-4 rounded-md h-full overflow-y-auto text-xs font-mono text-gray-800 whitespace-pre-wrap"
-            style="min-height: 200px; max-height: 60vh"
-          ></pre>
-        </div>
+        <pre
+          id="log-content"
+          class="bg-gray-50 p-4 rounded-md h-full overflow-y-auto text-xs font-mono text-gray-800 whitespace-pre-wrap"
+          style="min-height: 200px; max-height: 60vh"
+        ></pre>
 
-        <div class="flex justify-end gap-3 px-6 py-4 bg-gray-50 rounded-b-xl">
-          <button
-            id="download-log"
-            class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none transition-colors"
-          >
-            Download Log
-          </button>
+        <div class="flex justify-end gap-3 px-2 py-2 rounded-xl">
           <button
             id="close-log-modal"
             class="px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700 focus:outline-none transition-colors"
           >
             Tutup
           </button>
+          <button
+            id="download-log"
+            class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 focus:outline-none transition-colors flex items-center justify-center"
+          >
+            <img src="/icon/download-white.svg" alt="" class="w-4 h-4 mr-2" />
+            Unduh Log
+          </button>
         </div>
       </div>
     </div>
-
     <script type="module" src="/src/renderer.js"></script>
   </body>
 </html>

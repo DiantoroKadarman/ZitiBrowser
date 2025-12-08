@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, net } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 import started from "electron-squirrel-startup";
@@ -7,15 +7,40 @@ import { URL } from "url";
 import { spawn } from "child_process";
 import crypto from "node:crypto";
 
-// --- KONSTANTA ZITI & PROXY ---
 const PROXY_HOST = "127.0.0.1";
 const PROXY_PORT = "8080";
 const API_PORT = "8081";
-const ZITI_PROXY_ADDRESS = `http=${PROXY_HOST}:${PROXY_PORT}`;
+const ZITI_PROXY_ADDRESS = `${PROXY_HOST}:${PROXY_PORT}`;
 const ZITI_API_BASE_URL = `http://${PROXY_HOST}:${API_PORT}`;
 const ZITI_IDENTITIES_URL = `${ZITI_API_BASE_URL}/identities`;
 const ZITI_IDENTITY_URL = `${ZITI_API_BASE_URL}/identity`;
 const ZITI_ENROLL_URL = `${ZITI_API_BASE_URL}/enroll`;
+
+// --- KONSTANTA VAULT ---
+const VAULT_FILENAME = "ziti-vault.enc";
+let currentVaultPassword = null; // Password vault untuk sesi ini
+const vaultLock = {
+  locked: false,
+  queue: [],
+  async acquire() {
+    if (!this.locked) {
+      this.locked = true;
+      return;
+    }
+    return new Promise((resolve) => {
+      this.queue.push(resolve);
+    });
+  },
+  release() {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      next();
+    } else {
+      this.locked = false;
+    }
+  }
+};
+
 
 // Konstanta enkripsi
 const ALGORITHM = "aes-256-gcm";
@@ -81,10 +106,8 @@ function decryptStringWithPassword(encryptedBase64, password) {
 // --- FUNGSI: Dapatkan path ke zitihttproxy.exe ---
 function getProxyPath() {
   if (app.isPackaged) {
-    // Production: file berada di resources/assets/ (di luar app.asar)
     return path.join(process.resourcesPath, "assets", "zitihttproxy.exe");
   } else {
-    // Development: cari dari folder proyek (pakai getProjectRoot)
     return path.join(getProjectRoot(), "assets", "zitihttproxy.exe");
   }
 }
@@ -278,118 +301,258 @@ function extractNameFromJwt(jwtString) {
   return null;
 }
 
-async function checkSession() {
-  try {
-    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-    const identities = response?.services_collections || [];
+// --- FUNGSI MANAJEMEN VAULT ---
+function getVaultPath() {
+  return path.join(app.getPath("userData"), VAULT_FILENAME);
+}
 
-    if (identities.length > 0) {
-      if (mainWindow) {
-        await mainWindow.webContents.session.setProxy({
-          proxyRules: ZITI_PROXY_ADDRESS,
-        });
-      }
-      return { type: "session-restored", payload: { identities } };
-    } else {
-      return { type: "show-auth" };
-    }
-  } catch (error) {
-    if (error.message.includes("ECONNREFUSED")) {
-      return { type: "proxy-not-running" };
-    } else {
-      return { type: "show-auth" };
-    }
+async function vaultExists() {
+  try {
+    await fs.access(getVaultPath());
+    return true;
+  } catch {
+    return false;
   }
 }
 
-// --- IPC HANDLERS ---
-ipcMain.handle("handle-enrollment", async (event, { jwtContent, password }) => {
+async function readVault(password) {
+  const vaultPath = getVaultPath();
   try {
-    if (
-      !jwtContent ||
-      typeof jwtContent !== "string" ||
-      !jwtContent.includes(".")
-    ) {
-      throw new Error("JWT tidak valid.");
-    }
-    if (!password || typeof password !== "string" || password.length < 8) {
-      throw new Error("Password minimal 8 karakter.");
-    }
-
-    const newIdentityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
-      jwt: jwtContent,
-    });
-    if (!newIdentityData || typeof newIdentityData.id !== "object") {
-      throw new Error("Respons /enroll tidak valid.");
-    }
-
-    const identityJsonString = JSON.stringify(newIdentityData);
-    const encryptedBase64 = encryptStringWithPassword(
-      identityJsonString,
-      password
-    );
-    const fallbackName = `ziti-identity-${Date.now()}`;
-    const jwtExtractedName = extractNameFromJwt(jwtContent);
-    const fileName = `${jwtExtractedName || fallbackName}`;
-
-    const saveResult = await dialog.showSaveDialog(mainWindow, {
-      title: "Simpan Identity Terenkripsi",
-      defaultPath: fileName,
-      filters: [{ name: "Encrypted Identity", extensions: ["json.enc"] }],
-    });
-
-    if (!saveResult.canceled) {
-      let filePath = saveResult.filePath;
-      filePath = filePath.replace(/(\.json\.enc)+$/i, "") + ".json.enc";
-      await fs.writeFile(filePath, encryptedBase64, "base64");
-      console.log(`Identity disimpan ke: ${filePath}`);
-    }
-
-    return {
-      success: true,
-      message: `File identitas disimpan sebagai "${fileName}.json.enc"`,
-    };
+    const encryptedData = await fs.readFile(vaultPath, "utf8");
+    const decryptedJson = decryptStringWithPassword(encryptedData, password);
+    return JSON.parse(decryptedJson);
   } catch (e) {
-    console.error("Pendaftaran Gagal:", e);
-    let msg = e.message;
-    if (e.message?.includes("Status 400")) {
-      msg = "Proxy menolak data (Error 400). Pastikan JWT valid.";
-    } else if (e.message?.includes("ECONNREFUSED")) {
-      msg = `Koneksi ke proxy ditolak. Pastikan proxy jalan di port ${API_PORT}.`;
+    if (e.message === "Password salah atau file rusak.") {
+      throw new Error("Password vault salah.");
     }
-    return { success: false, message: msg };
+    throw new Error(`Gagal baca vault: ${e.message}`);
   }
-});
+}
 
-ipcMain.handle(
-  "handle-identity-upload",
-  async (event, base64Data, password) => {
-    if (!base64Data || typeof base64Data !== "string") {
-      return { success: false, message: "Data file tidak valid." };
-    }
-    if (!password || typeof password !== "string") {
-      return { success: false, message: "Password diperlukan." };
+async function writeVault(data, password) {
+  const vaultPath = getVaultPath();
+  const jsonString = JSON.stringify(data);
+  const encryptedData = encryptStringWithPassword(jsonString, password);
+  await fs.writeFile(vaultPath, encryptedData);
+}
+
+async function determineInitialState() {
+  const hasVault = await vaultExists();
+
+  if (!hasVault) {
+    return { type: "no-vault" }; // → tampilkan enroll/upload
+  }
+
+  if (!currentVaultPassword) {
+    return { type: "need-vault-password" }; // → minta password
+  }
+
+  try {
+    const vault = await readVault(currentVaultPassword);
+    const identities = vault.identities || [];
+    return identities.length === 0
+      ? { type: "empty-vault" }
+      : { type: "show-identity-list", payload: { identities } };
+  } catch (e) {
+    currentVaultPassword = null; // reset jika error
+    return { type: "need-vault-password", error: "Password salah." };
+  }
+}
+
+async function addIdentityToVault(identity, password) {
+  await vaultLock.acquire(); // 🔒 tunggu giliran
+  try {
+    let vault = { identities: [] };
+    if (await vaultExists()) {
+      try {
+        vault = await readVault(password);
+      } catch (e) {
+        if (!e.message.includes("ENOENT")) throw e;
+      }
     }
 
+    if (!identity.idString) {
+      const fallbackName = identity.name || `ziti-${Date.now()}`;
+      identity.idString = String(fallbackName)
+        .trim()
+        .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_");
+    }
+
+    if (!identity.idString) {
+      throw new Error("Identitas harus memiliki idString yang valid.");
+    }
+
+    identity.addedAt = new Date().toISOString();
+    vault.identities = vault.identities || [];
+
+    const existing = vault.identities.find(
+      (id) => id.idString === identity.idString
+    );
+    if (existing) {
+      throw new Error(`Identitas dengan nama "${identity.idString}" sudah ada.`);
+    }
+
+    vault.identities.push(identity);
+    await writeVault(vault, password);
+    console.log(`[VAULT] Added identity: "${identity.idString}", total: ${vault.identities.length}`);
+    return identity;
+
+  } finally {
+    vaultLock.release();
+  }
+}
+
+async function removeIdentityFromVault(idString, password) {
+  if (!idString) {
+    throw new Error("idString harus disediakan untuk menghapus identitas.");
+  }
+
+  if (!(await vaultExists())) {
+    throw new Error("Vault tidak ditemukan.");
+  }
+
+  let vault;
+  try {
+    vault = await readVault(password);
+  } catch (e) {
+    throw new Error(`Gagal membaca vault: ${e.message}`);
+  }
+
+  const identities = vault.identities || [];
+  const initialLength = identities.length;
+
+  // Pastikan idString adalah string (sesuai penyimpanan di vault)
+  const idToRemove = String(idString).trim();
+
+  vault.identities = identities.filter(id => id.idString !== idToRemove);
+
+  if (vault.identities.length === initialLength) {
+    throw new Error(`Identitas dengan idString "${idToRemove}" tidak ditemukan di vault.`);
+  }
+
+  // Simpan kembali vault tanpa identitas yang dihapus
+  await writeVault(vault, password);
+  return { removedIdString: idToRemove, remainingCount: vault.identities.length };
+}
+
+// --- IPC HANDLERS ---
+ipcMain.handle("handle-enrollment", async (event, { jwtContent, fileName, password }) => {
     try {
-      const decryptedJsonString = decryptStringWithPassword(
-        base64Data,
-        password
-      );
-      if (!decryptedJsonString) throw new Error("File terdekripsi kosong.");
+      if (!jwtContent?.includes(".")) throw new Error("JWT tidak valid.");
+      if (!password || password.length < 8)
+        throw new Error("Password minimal 8 karakter.");
 
-      await mainWindow.webContents.session.setProxy({
-        proxyRules: ZITI_PROXY_ADDRESS,
+      // Enroll identity via API
+
+      const identityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
+        jwt: jwtContent,
       });
-      await makeApiRequest(
-        "POST",
-        ZITI_IDENTITY_URL,
-        decryptedJsonString,
-        "application/json"
-      );
-      return { success: true };
+
+      if (!identityData || typeof identityData.id !== "object") {
+        throw new Error("Respons /enroll tidak valid.");
+      }
+
+      let safeName = null;
+
+      if (fileName) {
+        const base = path.basename(fileName).replace(/\.[^/.]+$/, ""); // hapus ekstensi
+        if (base && base.trim()) {
+          safeName = base
+            .trim()
+            .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+            .replace(/\s+/g, "-");
+        }
+      }
+
+      if (!safeName) {
+        safeName = extractNameFromJwt(jwtContent);
+      }
+
+      if (!safeName) {
+        safeName = `ziti-${Date.now()}`;
+      }
+
+      const identityForVault = {
+        ...identityData,
+        name: safeName,
+        idString: safeName,
+        addedAt: new Date().toISOString(),
+        fileName: fileName,
+      };
+
+      await addIdentityToVault(identityForVault, password);
+      currentVaultPassword = password;
+      mainWindow?.webContents.send("vault-updated");
+
+      return {
+        success: true,
+        message: `Identitas '${safeName}' berhasil didaftarkan dan disimpan di vault`,
+        identity: identityForVault,
+      };
     } catch (e) {
-      console.error("Gagal proses identitas:", e);
+      console.error("Pendaftaran Gagal:", e);
+      return { success: false, message: e.message || "Gagal enroll." };
+    }
+  }
+);
+
+ipcMain.handle( "handle-identity-upload", async (event, { identityFile, fileName, password }) => {
+    try {
+      if (!identityFile) throw new Error("File identitas diperlukan.");
+      if (!password || password.length < 8)
+        throw new Error("Password minimal 8 karakter.");
+
+      let identityData;
+      try {
+        identityData = JSON.parse(identityFile);
+      } catch (e) {
+        throw new Error("Format file identitas tidak valid (harus JSON).");
+      }
+
+      if (!identityData?.id || typeof identityData.id !== "object") {
+        throw new Error(
+          "File identitas tidak valid: properti 'id' tidak ditemukan atau bukan objek."
+        );
+      }
+
+      let safeName = "imported-" + Date.now(); // fallback
+
+      if (fileName) {
+        let base = path.basename(fileName);
+        const exts = /\.(json|jwt|token|txt)$/i;
+        while (exts.test(base)) {
+          base = base.replace(exts, "");
+        }
+
+        console.log(`[DEBUG] fileName: "${fileName}" → base: "${base}"`);
+        if (base && base.trim()) {
+          safeName = base
+            .trim()
+            .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
+            .replace(/\s+/g, "-");
+        }
+        console.log(`[DEBUG] safeName after sanitization: "${safeName}"`);
+      }
+
+      const identityForVault = {
+        ...identityData,
+        name: identityData.name || safeName,
+        idString: safeName,
+        addedAt: new Date().toISOString(),
+        fileName: fileName, // opsional: simpan nama asli file
+      };
+
+      await addIdentityToVault(identityForVault, password);
+      currentVaultPassword = password;
+      mainWindow?.webContents.send("vault-updated");
+
+      return {
+        success: true,
+        message: `Identitas '${safeName}' berhasil diimpor dan disimpan di vault`,
+        identity: identityForVault,
+      };
+    } catch (e) {
+      console.error("Gagal impor identitas:", e);
       return {
         success: false,
         message: e.message || "Gagal memproses file identitas.",
@@ -398,37 +561,44 @@ ipcMain.handle(
   }
 );
 
-ipcMain.handle("logout", async () => {
-  if (mainWindow) {
-    try {
-      await mainWindow.webContents.session.setProxy({
-        proxyRules: "direct://",
-      });
-      await mainWindow.webContents.session.clearStorageData();
-    } catch (error) {
-      console.error("Gagal reset proxy/session:", error);
-    }
-  }
+// --- IPC HANDLERS UNTUK VAULT ---
+ipcMain.handle("vault:check-exists", async () => {
+  return await vaultExists();
+});
 
+ipcMain.handle("vault:unlock", async (event, password) => {
   try {
-    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
-    if (response?.services_collections?.length > 0) {
-      for (const coll of response.services_collections) {
-        const id = coll.identity_id?.trim();
-        if (id) {
-          await makeApiRequest(
-            "DELETE",
-            `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`
-          );
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("Gagal bersihkan identitas saat logout:", error.message);
+    const vault = await readVault(password);
+    currentVaultPassword = password;
+    mainWindow?.webContents.send("vault-updated");
+    return {
+      success: true,
+      identities: vault.identities || [],
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.message,
+    };
   }
+});
 
-  console.log("Logout berhasil.");
-  return true;
+ipcMain.handle("vault:get-identities", async () => {
+  if (!currentVaultPassword) {
+    return { success: false, message: "Vault terkunci." };
+  }
+  try {
+    const vault = await readVault(currentVaultPassword);
+    return {
+      success: true,
+      identities: vault.identities || [],
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.message,
+    };
+  }
 });
 
 ipcMain.handle("get-ziti-identity-data", async () => {
@@ -460,17 +630,196 @@ ipcMain.handle("delete-identity", async (event, identityId) => {
   }
 });
 
-ipcMain.handle("check-session", async () => {
-  return await checkSession();
+ipcMain.handle("vault:remove-identity", async (event, idString, password) => {
+  if (!idString) {
+    return { success: false, message: "idString tidak boleh kosong." };
+  }
+  if (!password || password.length < 8) {
+    return { success: false, message: "Password minimal 8 karakter." };
+  }
+  try {
+    const result = await removeIdentityFromVault(idString, password);
+    mainWindow?.webContents.send("vault-updated");
+    return { success: true, result };
+  } catch (e) {
+    console.error("Gagal hapus identitas:", e);
+    return { success: false, message: e.message || "Gagal menghapus identitas." };
+  }
 });
 
-// --- IPC BARU: LOGGING ---
+
+ipcMain.handle("check-session", async () => {
+  return await determineInitialState();
+});
+
+// --- IPC: Cek apakah ada identitas aktif di proxy (untuk renderer reload) ---
+ipcMain.handle("proxy:get-active-identities", async () => {
+  try {
+    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    const identities = (response?.services_collections || []).map((coll) => ({
+      identity_name: coll.identity_name || "N/A",
+      identity_id: coll.identity_id || "N/A",
+      services: [...new Set(coll.services || [])],
+    }));
+    return { success: true, identities };
+  } catch (error) {
+    // Jika proxy mati/error, anggap tidak ada identitas aktif
+    console.warn("Gagal cek identitas aktif di proxy:", error.message);
+    return { success: true, identities: [] }; // tetap success, tapi kosong
+  }
+});
+
+ipcMain.handle("logout", async () => {
+  // Reset proxy dan session
+  if (mainWindow) {
+    try {
+      await mainWindow.webContents.session.setProxy({
+        proxyRules: "direct://",
+      });
+      await mainWindow.webContents.session.clearStorageData();
+    } catch (error) {
+      console.error("Gagal reset proxy/session:", error);
+    }
+  }
+
+  // Hapus identitas dari proxy
+  try {
+    const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
+    if (response?.services_collections?.length > 0) {
+      for (const coll of response.services_collections) {
+        const id = coll.identity_id?.trim();
+        if (id) {
+          await makeApiRequest(
+            "DELETE",
+            `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`
+          );
+        }
+      }
+    }
+  } catch (error) {
+    console.warn("Gagal bersihkan identitas dari proxy:", error.message);
+  }
+
+  // Reset password vault untuk sesi ini
+  currentVaultPassword = null;
+  mainWindow?.webContents.send("vault-locked");
+  console.log("Logout berhasil.");
+  return { success: true };
+});
+
+// --- IPC: Ambil konten log ---
 ipcMain.handle("proxy:get-log-content", async () => {
   const fsSync = require("fs");
   if (!logFilePath || !fsSync.existsSync(logFilePath)) {
     return "[LOG BELUM TERSEDIA]";
   }
   return await fs.readFile(logFilePath, "utf8");
+});
+
+// --- IPC: Deteksi protokol service (main process, pakai session yang aktif) ---
+ipcMain.handle("detect-service-protocol", async (event, serviceName) => {
+  if (!mainWindow?.webContents?.session) {
+    console.warn("[detect] No active session — fallback to https");
+    return "https";
+  }
+
+  const session = mainWindow.webContents.session;
+  const timeout = 5000;
+
+  // Helper: coba satu protokol
+  const tryProtocol = (protocol) => {
+    return new Promise((resolve) => {
+      const url = `${protocol}://${serviceName}`;
+      const req = net.request({
+        session,
+        method: "HEAD",
+        url,
+      });
+
+      const timer = setTimeout(() => {
+        req.abort();
+        resolve(false);
+      }, timeout);
+
+      req.on("response", () => {
+        clearTimeout(timer);
+        req.abort();
+        resolve(true);
+      });
+
+      req.on("error", (err) => {
+        clearTimeout(timer);
+        // Jika error SSL (self-signed), tetap anggap sukses!
+        if (/CERT|SSL|PROTO/i.test(err.code || err.message)) {
+          resolve(true);
+        } else {
+          resolve(false);
+        }
+      });
+
+      req.end();
+    });
+  };
+
+  // 🔍 Coba HTTPS dulu
+  const httpsWorks = await tryProtocol("https");
+  if (httpsWorks) return "https";
+
+  // 🔁 Fallback ke HTTP
+  const httpWorks = await tryProtocol("http");
+  if (httpWorks) return "http";
+
+  // 🛡️ Fallback akhir: HTTPS (karena kebanyakan internal service pakai HTTPS + self-signed)
+  return "https";
+});
+
+// --- IPC: Login identitas ke proxy ---
+ipcMain.handle("vault:login-selected", async (event, identityIdList) => {
+  if (!Array.isArray(identityIdList) || identityIdList.length === 0) {
+    return { success: false, message: "Pilih minimal satu identitas." };
+  }
+
+  if (!currentVaultPassword) {
+    return { success: false, message: "Vault terkunci." };
+  }
+
+  try {
+    const vault = await readVault(currentVaultPassword);
+
+    // Validasi semua ID ada di vault
+    const identitiesToLogin = identityIdList.map((idString) => {
+      const id = vault.identities.find((i) => i.idString === idString);
+      if (!id) throw new Error(`Identitas tidak ditemukan: ${idString}`);
+      return id;
+    });
+
+    // Set proxy sekali saja (bukan per identitas)
+    await event.sender.session.setProxy({ proxyRules: ZITI_PROXY_ADDRESS });
+
+    // 🔁 Kirim semua identitas ke `/identity` (proxy biasanya replace active identity, jadi loop sequensial)
+    for (const identity of identitiesToLogin) {
+      await makeApiRequest(
+        "POST",
+        ZITI_IDENTITY_URL,
+        identity,
+        "application/json"
+      );
+    }
+
+    return {
+      success: true,
+      message: `Berhasil login ${identitiesToLogin.length} identitas.`,
+      identities: identitiesToLogin.map((id) => ({
+        idString: id.idString,
+        name: id.name,
+      })),
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.message || "Gagal memproses login.",
+    };
+  }
 });
 
 // --- APP LIFECYCLE ---
@@ -494,12 +843,7 @@ const createWindow = () => {
     );
   }
 
-  mainWindow.webContents.once("did-finish-load", async () => {
-    const result = await checkSession();
-    mainWindow.webContents.send(result.type, result.payload);
-  });
-
-  mainWindow.webContents.openDevTools();
+  // mainWindow.webContents.openDevTools();
 };
 
 app.whenReady().then(() => {
@@ -522,3 +866,12 @@ if (started) {
 
 app.on("before-quit", stopProxy);
 app.on("quit", stopProxy);
+
+app.on(
+  "certificate-error",
+  (event, webContents, url, error, certificate, callback) => {
+    console.log(`Mengizinkan sertifikat tidak aman untuk: ${url}`);
+    event.preventDefault(); // Jangan blokir
+    callback(true); // Percayai sertifikat ini
+  }
+);

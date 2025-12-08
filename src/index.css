@@ -24,10 +24,11 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar collapsed */
+/* Sidebar */
 .sidebar {
-  width: 16rem;
+  width: 15rem;
   transition: width 0.3s ease-in-out;
+  border: none;
 }
 .sidebar.collapsed {
   width: 3.2rem;
@@ -54,6 +55,7 @@ body {
   flex-direction: column;
   background-color: #ffffff; /* Warna sidebar */
   box-sizing: border-box;
+  border: none;
   overflow-y: auto;
   /* Tambahkan transisi jika nanti ada fungsi collapse */
   transition: width 0.3s ease-in-out;
@@ -70,7 +72,7 @@ body {
 /* Webview mengisi sisa ruang */
 #webview {
   flex-grow: 1;
-  width: 100%;
+  width: 50%;
   height: 100%;
   border: none;
 }
@@ -96,9 +98,8 @@ body {
   width: 2rem;
   height: 2rem;
   border-radius: 9999px;
-  background-color: #e5e7eb; /* bg-gray-200 */
-  color: #4b5563; /* text-gray-700 */
-  border: none;
+  background-color: #ffffff; /* bg-gray-200 */
+  border-color: black;
   cursor: pointer;
   transition: background-color 0.15s;
   font-size: 1rem;
@@ -131,4 +132,17 @@ body {
 .app-container {
   flex-grow: 1;
   overflow: hidden;
+}
+
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 10px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
 }

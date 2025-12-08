@@ -1,19 +1,44 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  // === ZITI Identity Management ===
-  handleEnrollment: (jwtContent, password) => ipcRenderer.invoke("handle-enrollment", { jwtContent, password }),
-  handleIdentityUpload: (base64Data, password) => ipcRenderer.invoke("handle-identity-upload", base64Data, password),
-  getZitiIdentityData: () => ipcRenderer.invoke("get-ziti-identity-data"),
+  // === Vault Management ===
+  checkVaultExists: () => ipcRenderer.invoke("vault:check-exists"),
+  unlockVault: (password) => ipcRenderer.invoke("vault:unlock", password),
+  getVaultIdentities: () => ipcRenderer.invoke("vault:get-identities"),
+  loginSelected: (idStrings) => ipcRenderer.invoke("vault:login-selected", idStrings),
+  
+  // === Identity Management ===
+  handleEnrollment: (payload) => ipcRenderer.invoke("handle-enrollment", payload),
+  handleIdentityUpload: (payload) => ipcRenderer.invoke("handle-identity-upload", payload),
   deleteIdentity: (identityId) => ipcRenderer.invoke("delete-identity", identityId),
+  getZitiIdentityData: () => ipcRenderer.invoke("get-ziti-identity-data"),
+  removeIdentityFromVault: (idString, password) => ipcRenderer.invoke("vault:remove-identity", idString, password),
+
+  // === Session Management ===
   checkSession: () => ipcRenderer.invoke("check-session"),
-  logout: () => ipcRenderer.invoke("logout"), 
+  logout: () => ipcRenderer.invoke("logout"),
+  detectServiceProtocol: (serviceName) => ipcRenderer.invoke("detect-service-protocol", serviceName),
+  getActiveIdentitiesFromProxy: () => ipcRenderer.invoke("proxy:get-active-identities"),
 
-  // === Session Events (dengan penyesuaian payload) ===
-  onSessionRestored: (callback) => ipcRenderer.on("session-restored", (_, payload) => callback(payload)),
-  onShowAuth: (callback) => ipcRenderer.on("show-auth", () => callback()),
-  onProxyNotRunning: (callback) => ipcRenderer.on("proxy-not-running", () => callback()),
+  // === VAULT STATE EVENTS (baru & wajib) ===
+  onVaultUpdated: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on("vault-updated", handler);
+    return () => ipcRenderer.off("vault-updated", handler);
+  },
+  onVaultLocked: (callback) => {
+    const handler = (_, data) => callback(data);
+    ipcRenderer.on("vault-locked", handler);
+    return () => ipcRenderer.off("vault-locked", handler);
+  },
 
-  // === Proxy Log Management (hanya baca file saat dibutuhkan) ===
+  // === Proxy Logging ===
   getProxyLogContent: () => ipcRenderer.invoke("proxy:get-log-content"),
+  onProxyLogUpdate: (callback) => {
+    const handler = (_, message) => callback(message);
+    ipcRenderer.on("proxy-log-update", handler);
+    return () => ipcRenderer.off("proxy-log-update", handler);
+  },
 });
+
+

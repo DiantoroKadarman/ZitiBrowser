@@ -13,7 +13,9 @@ const tabsContainer = document.getElementById("tabs-container");
 const serviceTabsContainer = document.getElementById("service-tabs-container");
 const identityButton = document.getElementById("identity-button");
 const identityModal = document.getElementById("identity-modal");
-const identityDetailsContent = document.getElementById("identity-details-content");
+const identityDetailsContent = document.getElementById(
+  "identity-details-content"
+);
 const closeModalButton = document.getElementById("close-modal-button");
 const sidebar = document.getElementById("sidebar");
 const sidebarContent = document.getElementById("sidebar-content");
@@ -45,6 +47,9 @@ let activeIdentities = [];
 let enabledIdentityIds = new Set();
 let activeServiceTabId = null;
 let serviceTabs = new Map();
+let currentScreen = "no-vault";
+let sessionVaultPassword = null;
+let selectedIdentities = new Set();
 
 // --- UTILITAS ---
 function handleUrl() {
@@ -62,61 +67,55 @@ function handleUrl() {
 }
 
 function showScreen(screen) {
+  currentScreen = screen;
   const browserContainer = document.querySelector(".app-container");
   browserContainer.classList.toggle("hidden", screen !== "browser");
   authScreen.classList.toggle("hidden", screen === "browser");
-
-  if (screen !== "browser") {
-    authBox.classList.toggle("hidden", screen === "processing");
-    processingIndicator.classList.toggle("hidden", screen !== "processing");
-  }
+  authBox.classList.add("hidden");
+  document.getElementById("identity-list-screen")?.classList.add("hidden");
+  document.getElementById("vault-password-screen")?.classList.add("hidden");
+  processingIndicator.classList.add("hidden");
   authErrorMessage.classList.add("hidden");
-  console.log(`Beralih ke tampilan: ${screen}`);
+
+  switch (screen) {
+    case "no-vault":
+      authBox.classList.remove("hidden");
+      document
+        .getElementById("initial-setup-message")
+        ?.classList.remove("hidden");
+      document.getElementById("empty-vault-message")?.classList.add("hidden");
+      break;
+    case "empty-vault":
+      authBox.classList.remove("hidden");
+      document.getElementById("initial-setup-message")?.classList.add("hidden");
+      document
+        .getElementById("empty-vault-message")
+        ?.classList.remove("hidden");
+      break;
+    case "identity-list":
+      document
+        .getElementById("identity-list-screen")
+        ?.classList.remove("hidden");
+      break;
+    case "processing":
+      processingIndicator.classList.remove("hidden");
+      break;
+
+    case "need-vault-password":
+      // Tidak perlu tindakan khusus — password-modal akan di-trigger terpisah
+      // (dan memang bukan bagian dar i auth-screen)
+      break;
+    case "vault-password":
+      document
+        .getElementById("vault-password-screen")
+        ?.classList.remove("hidden");
+      break;
+  }
 }
 
 function handleAuthFailure(message) {
   authErrorMessage.innerHTML = `<span class="block sm:inline">${message}</span>`;
   authErrorMessage.classList.remove("hidden");
-  showScreen("authentication");
-}
-
-function showPasswordPrompt() {
-  return new Promise((resolve) => {
-    const modal = document.getElementById("password-modal");
-    const input = document.getElementById("password-input");
-    const submitBtn = document.getElementById("password-submit");
-    const cancelBtn = document.getElementById("password-cancel");
-
-    input.value = "";
-    modal.classList.remove("hidden");
-
-    const cleanup = () => {
-      modal.classList.add("hidden");
-      submitBtn.removeEventListener("click", onSubmit);
-      cancelBtn.removeEventListener("click", onCancel);
-      input.removeEventListener("keydown", onKey);
-    };
-
-    const onSubmit = () => {
-      cleanup();
-      resolve(input.value);
-    };
-
-    const onCancel = () => {
-      cleanup();
-      resolve(null);
-    };
-
-    const onKey = (e) => {
-      if (e.key === "Enter") onSubmit();
-      if (e.key === "Escape") onCancel();
-    };
-
-    submitBtn.addEventListener("click", onSubmit);
-    cancelBtn.addEventListener("click", onCancel);
-    input.addEventListener("keydown", onKey);
-    input.focus();
-  });
 }
 
 function showWebview(targetWebview) {
@@ -215,20 +214,31 @@ window.toggleIdentity = function (identityId) {
   renderSidebar();
 };
 
-window.openServiceTab = function (identityId, serviceName) {
+window.openServiceTab = async function (identityId, serviceName) {
   const tabId = getServiceTabId(identityId, serviceName);
   if (serviceTabs.has(tabId)) {
     switchToServiceTab(tabId);
     return;
   }
 
+  // 🔍 Deteksi protokol via main process (lebih andal)
+  let protocol;
+  try {
+    protocol = await window.electronAPI.detectServiceProtocol(serviceName);
+  } catch (err) {
+    console.warn(`Gagal deteksi protokol untuk ${serviceName}:`, err);
+    protocol = "https"; // fallback aman
+  }
+
+  const fullUrl = `${protocol}://${serviceName}`;
+
   const webview = document.createElement("webview");
   webview.setAttribute("nodeintegration", "false");
   webview.setAttribute("plugins", "false");
   webview.setAttribute("disablewebsecurity", "false");
+  webview.setAttribute("allowpopups", "true"); // ✅
   webview.style.width = "100%";
   webview.style.height = "100%";
-  webview.src = `http://${serviceName}`;
   webview.classList.add("hidden");
   webviewContainer.appendChild(webview);
 
@@ -241,6 +251,7 @@ window.openServiceTab = function (identityId, serviceName) {
   });
 
   attachWebviewListeners(webview, true, identityId, serviceName);
+  webview.src = fullUrl;
   switchToServiceTab(tabId);
 };
 
@@ -262,9 +273,9 @@ function createWebviewForTab(url) {
   webview.setAttribute("nodeintegration", "false");
   webview.setAttribute("plugins", "false");
   webview.setAttribute("disablewebsecurity", "false");
+  webview.setAttribute("allowpopups", "true"); // ✅ INI WAJIB
   webview.style.width = "100%";
   webview.style.height = "100%";
-  webview.src = url;
   webview.classList.add("hidden");
   webviewContainer.appendChild(webview);
   return webview;
@@ -273,6 +284,7 @@ function createWebviewForTab(url) {
 function createBrowserTab(url = "https://www.google.com") {
   const webview = createWebviewForTab(url);
   attachWebviewListeners(webview, false);
+  webview.src = url;
   const newTab = {
     id: Date.now().toString(),
     title: "New Tab",
@@ -289,6 +301,7 @@ function renderTabs() {
   tabsContainer.innerHTML = "";
 
   if (tabs.length === 0) {
+    // 🔧 DIPERBAIKI: hapus spasi
     createBrowserTab("https://www.google.com");
     return;
   }
@@ -325,6 +338,7 @@ function removeBrowserTab(index) {
   tabs.splice(index, 1);
 
   if (tabs.length === 0 && serviceTabs.size === 0) {
+    // 🔧 DIPERBAIKI: hapus spasi
     createBrowserTab("https://www.google.com");
   } else if (activeServiceTabId === null) {
     const newIndex = Math.max(0, Math.min(currentTabIndex, tabs.length - 1));
@@ -399,15 +413,24 @@ function attachWebviewListeners(
     }
   });
 
-  webview.addEventListener("load-commit", updateNavButtons);
-}
+  // ✅ Tambahkan penanganan new-window
+  webview.addEventListener("new-window", (e) => {
+    e.preventDefault(); // ✅ KRUSIAL — cegah popup
+    const { url, disposition } = e;
+    if (!/^https?:\/\//i.test(url)) {
+      console.warn("Ditolak: bukan HTTP/HTTPS", url);
+      return;
+    }
+    if (
+      disposition === "new-window" ||
+      disposition === "foreground-tab" ||
+      disposition === "background-tab"
+    ) {
+      createBrowserTab(url); // ✅ buka tab baru di aplikasi
+    }
+  });
 
-function arrayBufferToBase64(buffer) {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++)
-    binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
+  webview.addEventListener("load-commit", updateNavButtons);
 }
 
 async function showProxyLog() {
@@ -417,7 +440,6 @@ async function showProxyLog() {
     logModal.classList.remove("hidden");
     logModal.classList.add("flex");
     logContent.scrollTop = logContent.scrollHeight; // Scroll ke bawah
-
   } catch (err) {
     console.error("Gagal membaca log:", err);
     alert("Tidak bisa memuat log proxy.");
@@ -473,10 +495,22 @@ async function handleLogout() {
     console.error("Gagal Logout:", e);
     handleAuthFailure("Gagal logout. Silakan mulai ulang aplikasi.");
   }
+  showScreen("processing");
 }
-
 window.handleLogout = handleLogout;
 
+async function refreshActiveIdentities() {
+  try {
+    const result = await window.electronAPI.getZitiIdentityData(); // pastikan sudah di-expose di preload.js
+    activeIdentities = result.identities || [];
+    enabledIdentityIds = new Set(activeIdentities.map((id) => id.identity_id));
+  } catch (e) {
+    console.warn("Gagal refresh identitas dari proxy:", e);
+    // Opsional: fallback ke activeIdentities lama tanpa services
+  }
+}
+
+// --- WRAPPER MODAL IDENTITAS (dalam browser) ---
 window.displayIdentityData = function () {
   if (!identityModal || !identityDetailsContent) return;
 
@@ -487,7 +521,7 @@ window.displayIdentityData = function () {
     activeIdentities.forEach((id) => {
       const isChecked = enabledIdentityIds.has(id.identity_id);
       html += `
-        <div class="mb-3 p-3 border rounded ${!isChecked ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start">
+        <div class="mb-3 p-3 ${!isChecked ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start rounded-xl">
           <div class="flex-1">
             <p class="font-medium text-gray-800">${id.identity_name || "N/A"}</p>
             <p class="text-xs text-gray-500">ID: ${id.identity_id || "N/A"}</p>
@@ -496,13 +530,11 @@ window.displayIdentityData = function () {
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" class="sr-only peer" ${isChecked ? "checked" : ""}
                 onchange="toggleIdentityFromModal('${id.identity_id}')"/>
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
             </label>
             <button type="button" class="text-red-500 hover:text-red-700" title="Hapus identitas ini"
               onclick="deleteIdentityFromModal('${id.identity_id}')">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-              </svg>
+              <img src="/icon/trash-red.svg" alt="Hapus" class="w-6 h-6 hover:opacity-80"/>
             </button>
           </div>
         </div>
@@ -520,83 +552,6 @@ window.toggleIdentityFromModal = function (identityId) {
   displayIdentityData();
 };
 
-// --- TAMBAH IDENTITAS DARI MODAL ---
-window.uploadIdentityFromModal = async function () {
-  // Trigger file picker
-  const fileInput = document.getElementById("identity-file-input");
-  if (!fileInput) {
-    console.error("File input tidak ditemukan!");
-    return;
-  }
-
-  // Reset dan buka dialog
-  fileInput.value = "";
-  fileInput.click();
-
-  // Tunggu sampai file dipilih (gunakan Promise + event listener sekali pakai)
-  const filesSelected = new Promise((resolve) => {
-    const handler = (e) => {
-      fileInput.removeEventListener("change", handler);
-      resolve(Array.from(e.target.files));
-    };
-    fileInput.addEventListener("change", handler);
-  });
-
-  const files = await filesSelected;
-  if (files.length === 0) return;
-
-  // Minta password
-  const password = await showPasswordPrompt();
-  if (!password) {
-    fileInput.value = "";
-    return;
-  }
-
-  // Tampilkan indikator proses (opsional: bisa tampilkan di modal)
-  showScreen("processing");
-
-  try {
-    const uploadPromises = files.map(async (file) => {
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = arrayBufferToBase64(arrayBuffer);
-      return window.electronAPI.handleIdentityUpload(base64, password); 
-    });
-
-    const results = await Promise.all(uploadPromises);
-    const hasSuccess = results.some((r) => r.success);
-    const allMessages = results
-      .filter((r) => !r.success && r.message)
-      .map((r) => r.message)
-      .join("\n");
-
-    if (hasSuccess) {
-      // Muat ulang sesi
-      const sessionResult = await window.electronAPI.checkSession();
-      if (sessionResult.type === "session-restored") {
-        activeIdentities = sessionResult.payload.identities;
-        enabledIdentityIds = new Set(
-          activeIdentities.map((id) => id.identity_id)
-        );
-        renderSidebar();
-        displayIdentityData(); // Perbarui modal
-        // Tidak perlu pindah layar, tetap di browser
-      } else {
-        throw new Error("Gagal memuat sesi setelah upload.");
-      }
-    } else {
-      handleAuthFailure(allMessages || "Gagal memuat semua file identitas.");
-    }
-  } catch (err) {
-    console.error("Upload dari modal error:", err);
-    handleAuthFailure(`Gagal memproses file: ${err.message}`);
-  } finally {
-    fileInput.value = "";
-    // Kembalikan tampilan ke browser jika sedang di processing
-    if (authScreen.classList.contains("hidden") === false) {
-      showScreen("browser");
-    }
-  }
-};
 window.deleteIdentityFromModal = async function (identityId) {
   if (!confirm("Yakin ingin menghapus identitas ini?")) return;
 
@@ -629,108 +584,565 @@ window.deleteIdentityFromModal = async function (identityId) {
     alert("Gagal menghapus identitas. Coba lagi.");
   }
 };
+// --- END MODAL IDENTITAS WRAPPER ---
 
-// --- AUTH LISTENERS ---
+// ------ AUTH PAGE FUNCTIONS ------
 function setupAuthListeners() {
-  // --- ENROLLMENT ---
+  // --- ENROLLMENT (first-time) ---
   if (enrollmentForm) {
     enrollmentForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const file = enrollJwtFile.files[0];
-      if (!file) return handleAuthFailure("File JWT harus dipilih.");
+      const files = Array.from(enrollJwtFile.files); // ✅ multiple
+      if (files.length === 0)
+        return handleAuthFailure("File JWT harus dipilih.");
 
-      const jwtContent = await file.text();
-      const password = await showPasswordPrompt();
-      if (!password) return;
-      if (password.length < 8)
+      const password = await showPasswordInput({
+        target: "password-modal",
+        placeholder: "Password file identitas",
+        title: "Masukkan Password",
+        minLength: 8,
+      });
+      if (!password || password.length < 8) {
         return handleAuthFailure("Password minimal 8 karakter.");
+      }
 
       showScreen("processing");
       try {
-        const result = await window.electronAPI.handleEnrollment(
-          jwtContent,
-          password
-        );
-        if (result.success) {
-          const modal = document.getElementById("enrollment-success-modal");
-          const msgEl = document.getElementById("success-message");
-          if (modal && msgEl) {
-            msgEl.textContent = result.message;
-            modal.classList.remove("hidden");
-            document.body.classList.add("overflow-hidden");
-          }
-        } else {
-          handleAuthFailure(result.message);
+        // ✅ Proses semua file
+        const enrollPromises = files.map(async (file) => {
+          const jwtContent = await file.text();
+          return window.electronAPI.handleEnrollment({
+            jwtContent,
+            fileName: file.name,
+            password,
+          });
+        });
+
+        const results = await Promise.all(enrollPromises);
+        const successful = results.filter((r) => r.success);
+
+        if (successful.length === 0) {
+          throw new Error(
+            results
+              .map((r) => r.message)
+              .filter(Boolean)
+              .join("; ") || "Enroll gagal."
+          );
         }
+
+        // 🔁 Lanjutkan ke auto-login *sekali* seperti sebelumnya (ke identitas pertama)
+        // (atau — opsional — langsung login semua successful identities)
+        const sessionRes = await window.electronAPI.checkSession();
+        if (sessionRes.type !== "show-identity-list") {
+          throw new Error("Vault tidak terbuka setelah enroll.");
+        }
+
+        activeIdentities = sessionRes.payload.identities;
+        const firstId = activeIdentities[0];
+        if (!firstId?.idString) throw new Error("Identitas tanpa idString.");
+
+        // ✅ Login semua identitas yang baru saja di-enroll (lebih konsisten)
+        const newlyEnrolledIds = successful
+          .map((r) => r.identity?.idString)
+          .filter(Boolean);
+        const loginRes =
+          await window.electronAPI.loginSelected(newlyEnrolledIds);
+        if (!loginRes.success) throw new Error(loginRes.message);
+
+        await refreshActiveIdentities();
+        renderSidebar();
+        showScreen("browser");
+        if (tabs.length === 0) createBrowserTab("https://www.google.com");
       } catch (err) {
-        console.error("Error enrollment:", err);
-        handleAuthFailure("Terjadi kesalahan saat enrollment.");
+        console.error("Enrollment error:", err);
+        handleAuthFailure(err.message || "Gagal enroll identitas.");
       } finally {
         enrollmentForm.reset();
       }
     });
   }
 
-  // --- UPLOAD IDENTITY: HANYA trigger file input ---
+  // --- UPLOAD JSON (first-time) ---
   if (uploadIdentityButton) {
     uploadIdentityButton.addEventListener("click", () => {
       document.getElementById("identity-file-input").click();
     });
   }
+
+  // --- FILE INPUT CHANGE HANDLER ---
+  document
+    .getElementById("identity-file-input")
+    ?.addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) {
+        e.target.value = "";
+        return;
+      }
+
+      const password = await showPasswordInput({
+        target: "password-modal",
+        placeholder: "Password file identitas",
+        title: "Masukkan Password",
+        minLength: 8,
+      });
+      if (!password || password.length < 8) {
+        return handleAuthFailure("Password minimal 8 karakter.");
+      }
+
+      showScreen("processing");
+      try {
+        // ✅ Proses semua file
+        const uploadPromises = files.map(async (file) => {
+          const textContent = await file.text();
+          return window.electronAPI.handleIdentityUpload({
+            identityFile: textContent,
+            fileName: file.name,
+            password: password,
+          });
+        });
+
+        const results = await Promise.all(uploadPromises);
+        const successful = results.filter((r) => r.success);
+        if (successful.length === 0) {
+          throw new Error(
+            results
+              .map((r) => r.message)
+              .filter(Boolean)
+              .join("; ") || "Upload gagal."
+          );
+        }
+
+        // ✅ Login semua identitas yang baru diupload
+        const newIds = successful
+          .map((r) => r.identity?.idString)
+          .filter(Boolean);
+        if (newIds.length === 0) {
+          throw new Error("Tidak ada identitas valid untuk login.");
+        }
+
+        const loginRes = await window.electronAPI.loginSelected(newIds);
+        if (!loginRes.success) {
+          throw new Error(loginRes.message || "Gagal login otomatis.");
+        }
+
+        // ✅ Lanjut ke browser
+        await refreshActiveIdentities();
+        renderSidebar();
+        showScreen("browser");
+        if (tabs.length === 0) createBrowserTab("https://www.google.com");
+      } catch (err) {
+        console.error("Multi-upload (first-time) error:", err);
+        handleAuthFailure(err.message || "Gagal memproses identitas.");
+      } finally {
+        e.target.value = "";
+      }
+    });
 }
 
-// --- EVENT LISTENERS ---
-document.getElementById("identity-file-input")
-  ?.addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+window.handleLoginSelection = async function () {
+  const ids = Array.from(selectedIdentities);
+  if (ids.length === 0) {
+    return alert("Pilih minimal satu identitas.");
+  }
 
-    const password = await showPasswordPrompt();
-    if (!password) {
-      e.target.value = "";
+  try {
+    const result = await window.electronAPI.loginSelected(ids);
+
+    if (result.success) {
+      await refreshActiveIdentities();
+      renderSidebar();
+      displayIdentityData();
+      showScreen("browser");
+      if (tabs.length === 0) {
+        createBrowserTab("https://www.google.com");
+      }
+    } else {
+      handleAuthFailure(result.message || "Gagal login.");
+    }
+  } catch (error) {
+    console.error("[RENDERER] Login error:", error);
+    handleAuthFailure("Terjadi kesalahan saat login.");
+  }
+};
+function displayIdentityOnVault() {
+  const identityListContent = document.getElementById("identity-list-content");
+  if (!identityListContent) return;
+
+  let html = "";
+  if (activeIdentities.length === 0) {
+    html = "<p class='text-gray-500'>Tidak ada identitas dalam vault.</p>";
+  } else {
+    html = `
+    <div class="space-y-3">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-semibold"></h3>
+
+        <div class="flex items-center space-x-1">
+          <span class="text-sm text-black-600">Pilih Semua</span>
+          <button 
+            type="button"
+            onclick="toggleSelectAll()"
+            class="w-5 h-5 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+          >
+            ${
+              selectedIdentities.size === 0
+                ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2"/></svg>`
+                : selectedIdentities.size === activeIdentities.length
+                  ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>`
+                  : `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><line x1="5" y1="12" x2="19" y2="12" stroke-width="2" stroke-linecap="round"/></svg>`
+            }
+          </button>
+        </div>
+      </div>
+
+      ${activeIdentities
+        .map((id) => {
+          const isSelected = selectedIdentities.has(id.idString);
+          const checkboxId = `chk-${id.idString.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+          return `
+          <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-start gap-3 transition-colors ${
+            isSelected ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
+          }">
+            <input 
+              type="checkbox" 
+              id="${checkboxId}"
+              ${isSelected ? "checked" : ""}
+              onchange="toggleIdentitySelection('${id.idString.replace(/'/g, "\\'")}', this.checked)"
+              class="mt-1 h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500"
+            />
+            <div class="flex-1 min-w-0" onclick="toggleCheckbox('${checkboxId}')">
+              <p class="font-medium truncate">${id.name || "Unnamed Identity"}</p>
+              <p class="text-sm text-gray-500 truncate">ID: ${id.idString}</p>
+              ${
+                id.enrolledFrom
+                  ? `<p class="text-xs text-gray-400 mt-1">Source: ${id.enrolledFrom}</p>`
+                  : id.addedAt
+                    ? `<p class="text-xs text-gray-400 mt-1">Added: ${new Date(id.addedAt).toLocaleDateString()}</p>`
+                    : ""
+              }
+            </div>
+          </div>
+        `;
+        })
+        .join("")}
+    </div>
+    `;
+  }
+
+  identityListContent.innerHTML = html;
+}
+window.toggleCheckbox = function (checkboxId) {
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    checkbox.checked = !checkbox.checked;
+    // Trigger onchange (agar toggleIdentitySelection terpanggil)
+    checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+};
+window.toggleIdentitySelection = function (idString, checked) {
+  // Update state
+  if (checked) {
+    selectedIdentities.add(idString);
+  } else {
+    selectedIdentities.delete(idString);
+  }
+
+  // Update UI *semua* checkbox yang relevan (jaga konsistensi)
+  const checkboxId = `chk-${idString.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+  const checkbox = document.getElementById(checkboxId);
+  if (checkbox) {
+    checkbox.checked = checked;
+  }
+
+  // Update tombol
+  updateLoginButton();
+};
+window.toggleSelectAll = function () {
+  if (selectedIdentities.size === activeIdentities.length) {
+    selectedIdentities.clear();
+  } else {
+    activeIdentities.forEach((id) => selectedIdentities.add(id.idString));
+  }
+  displayIdentityOnVault();
+  updateLoginButton(); // pastikan tombol ikut update
+};
+function updateLoginButton() {
+  const loginBtn = document.getElementById("login-btn"); // ← pastikan ID ini di index.html
+  if (!loginBtn) return;
+
+  const count = selectedIdentities.size;
+  if (count === 0) {
+    loginBtn.textContent = "Pilih Identitas";
+    loginBtn.disabled = true;
+    loginBtn.classList.add("opacity-50", "cursor-not-allowed");
+    loginBtn.classList.remove("opacity-100");
+  } else {
+    loginBtn.textContent =
+      count === 1 ? "Login 1 Identitas" : `Login ${count} Identitas`;
+    loginBtn.disabled = false;
+    loginBtn.classList.remove("opacity-50", "cursor-not-allowed");
+    loginBtn.classList.add("opacity-100");
+  }
+  loginBtn.classList.add("bg-green-600", "hover:bg-green-700");
+}
+
+// --- VAULT EVENT HANDLERS ---
+async function handleVaultUpdated() {
+  try {
+    const result = await window.electronAPI.checkSession();
+    if (result.type === "show-identity-list") {
+      activeIdentities = result.payload.identities;
+      if (currentScreen === "browser") {
+        await refreshActiveIdentities(); // hanya di browser
+        renderSidebar();
+      } else {
+        displayIdentityOnVault();
+        showScreen("identity-list");
+      }
+    } else if (result.type === "empty-vault") {
+      showScreen("empty-vault");
+    }
+  } catch (e) {
+    console.warn("Vault update refresh failed:", e);
+  }
+}
+
+function handleVaultUnlocked(identities) {
+  if (identities.length === 0) {
+    showScreen("empty-vault");
+  } else {
+    activeIdentities = identities; // ← ini dari vault (ada idString, name, dll)
+    displayIdentityOnVault();
+    showScreen("identity-list");
+  }
+}
+
+function showUploadIdentityDialog() {
+  // Buat modal jika belum ada
+  let modal = document.getElementById("upload-identity-dialog");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "upload-identity-dialog";
+    modal.className =
+      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4";
+    modal.innerHTML = `
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">Tambah Identitas</h3>
+        <div class="space-y-3">
+          <button id="btn-upload-json" class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-3"">
+            <img src="/icon/upload.svg" alt="" class="w-5 h-5" />
+            Upload dari File JSON
+          </button>
+          <button id="btn-upload-jwt" class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-3"">
+            <img src="/icon/upload.svg" alt="" class="w-5 h-5" />
+            Upload dari File JWT
+          </button>
+        </div>
+        <button id="btn-cancel-upload" class="w-full mt-4 py-2 text-gray-600 hover:text-gray-800">
+          Batal
+        </button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Setup listeners
+    modal.querySelector("#btn-cancel-upload").onclick = () =>
+      (modal.style.display = "none");
+    modal.querySelector("#btn-upload-json").onclick = () => {
+      modal.style.display = "none";
+      triggerFileUpload("json");
+    };
+    modal.querySelector("#btn-upload-jwt").onclick = () => {
+      modal.style.display = "none";
+      triggerFileUpload("jwt");
+    };
+  }
+
+  modal.style.display = "flex";
+}
+window.showUploadIdentityDialog = showUploadIdentityDialog;
+
+// ✅ SINGLE SOURCE OF TRUTH — multi-file support for JSON & JWT
+async function triggerFileUpload(type) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.accept = type === "json" ? ".json" : ".jwt,.token,.txt";
+  input.style.display = "none";
+
+  input.onchange = async (e) => {
+    const files = Array.from(e.target.files);
+    console.log(
+      `[DEBUG] Upload ${type}: memilih ${files.length} file`,
+      files.map((f) => f.name)
+    );
+    if (files.length === 0) {
+      input.remove();
       return;
+    }
+
+    if (!sessionVaultPassword) {
+      const password = await showPasswordInput({
+        target: "password-modal",
+        placeholder: "Password file identitas",
+        title: "Masukkan Password",
+        minLength: 8,
+      });
+      if (!password || password.length < 8) {
+        input.remove();
+        return alert("Password minimal 8 karakter.");
+      }
+      sessionVaultPassword = password;
     }
 
     showScreen("processing");
 
     try {
       const uploadPromises = files.map(async (file) => {
-        const arrayBuffer = await file.arrayBuffer();
-        const base64 = arrayBufferToBase64(arrayBuffer);
-        return window.electronAPI.handleIdentityUpload(base64, password);
+        const fileName = file.name;
+        const fileContent = await file.text();
+        return type === "json"
+          ? window.electronAPI.handleIdentityUpload({
+              identityFile: fileContent,
+              fileName,
+              password: sessionVaultPassword,
+            })
+          : window.electronAPI.handleEnrollment({
+              jwtContent: fileContent,
+              fileName,
+              password: sessionVaultPassword,
+            });
       });
 
       const results = await Promise.all(uploadPromises);
-      const hasSuccess = results.some((r) => r.success);
-      const allMessages = results
-        .filter((r) => !r.success && r.message)
-        .map((r) => r.message)
-        .join("\n");
+      const successful = results.filter((r) => r.success);
+      const failed = results.filter((r) => !r.success);
 
-      if (hasSuccess) {
-        const sessionResult = await window.electronAPI.checkSession();
-        if (sessionResult.type === "session-restored") {
-          activeIdentities = sessionResult.payload.identities;
-          enabledIdentityIds = new Set(
-            activeIdentities.map((id) => id.identity_id)
-          );
-          renderSidebar();
-          showScreen("browser");
-          if (tabs.length === 0) createBrowserTab("https://www.google.com");
-        } else {
-          throw new Error("Gagal memuat sesi setelah upload.");
-        }
-      } else {
-        handleAuthFailure(allMessages || "Gagal memuat semua file identitas.");
+      if (successful.length === 0) {
+        throw new Error(
+          failed
+            .map((r) => r.message)
+            .filter(Boolean)
+            .join("; ") || "Semua file gagal diproses."
+        );
       }
-    } catch (err) {
-      console.error("Upload error:", err);
-      handleAuthFailure(`Gagal memproses file: ${err.message}`);
-    } finally {
-      e.target.value = "";
-    }
-  });
 
+      // ✅ Auto-login semua identitas baru
+      const newIds = successful
+        .map((r) => r.identity?.idString)
+        .filter(Boolean);
+      if (newIds.length > 0) {
+        const loginRes = await window.electronAPI.loginSelected(newIds);
+        if (!loginRes.success) {
+          console.warn("Auto-login gagal:", loginRes.message);
+        }
+      }
+
+      // ✅ UI feedback
+      const toast = document.createElement("div");
+      toast.className =
+        "fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 text-white";
+      if (successful.length === 1) {
+        toast.classList.add("bg-green-600");
+        toast.textContent = `✅ ${successful[0].message}`;
+      } else {
+        toast.classList.add("bg-blue-600");
+        toast.textContent = `✅ ${successful.length} identitas berhasil ditambahkan${failed.length ? ` (${failed.length} gagal)` : ""}.`;
+      }
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove?.(), 4000);
+
+      await handleVaultUpdated(); // refresh identity list
+    } catch (err) {
+      console.error(`[triggerFileUpload ${type}] Error:`, err);
+      handleAuthFailure(
+        err.message || `Gagal memproses file ${type.toUpperCase()}.`
+      );
+    } finally {
+      input.remove();
+      if (currentScreen !== "identity-list") {
+        showScreen("identity-list");
+      }
+    }
+  };
+
+  document.body.appendChild(input);
+  input.click();
+}
+
+window.RemoveIdentityFromVault = async function () {
+  const idsToDelete = Array.from(selectedIdentities);
+  if (idsToDelete.length === 0) {
+    alert("Pilih minimal satu identitas yang akan dihapus.");
+    return;
+  }
+
+  const confirmMsg =
+    idsToDelete.length === 1
+      ? `Yakin ingin menghapus identitas "${idsToDelete[0]}" dari vault?\n\n⚠️ Aksi ini tidak bisa dibatalkan.`
+      : `Yakin ingin menghapus ${idsToDelete.length} identitas terpilih dari vault?\n\n⚠️ Aksi ini tidak bisa dibatalkan.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  // Gunakan password sesi yang sudah ada — jangan minta ulang tiap hapus
+  if (!sessionVaultPassword) {
+    const password = await showPasswordInput({
+      target: "password-modal",
+      placeholder: "Password file identitas",
+      title: "Masukkan Password",
+      minLength: 8,
+    });
+    if (!password || password.length < 8) {
+      return alert("Password minimal 8 karakter.");
+    }
+    sessionVaultPassword = password;
+  }
+
+  try {
+    showScreen("processing");
+
+    // Hapus satu per satu (lebih aman & transparan error)
+    for (const idString of idsToDelete) {
+      const result = await window.electronAPI.removeIdentityFromVault(
+        idString,
+        sessionVaultPassword
+      );
+
+      if (!result.success) {
+        throw new Error(
+          `Gagal menghapus "${idString}": ${result.message || "Error tidak diketahui."}`
+        );
+      }
+    }
+
+    // ✅ Sukses — reset state & refresh UI
+    selectedIdentities.clear();
+    await handleVaultUpdated(); // ini akan refresh `activeIdentities` dan render ulang
+
+    // Tampilkan notifikasi sukses
+    const toast = document.createElement("div");
+    toast.className =
+      "fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md shadow-lg z-50";
+    toast.textContent =
+      idsToDelete.length === 1
+        ? `✅ Identitas "${idsToDelete[0]}" berhasil dihapus.`
+        : `✅ ${idsToDelete.length} identitas berhasil dihapus.`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 3000);
+  } catch (err) {
+    console.error("RemoveIdentityFromVault error:", err);
+    alert(`Gagal menghapus identitas: ${err.message}`);
+  } finally {
+    // Pastikan kembali ke identity-list screen
+    if (currentScreen !== "identity-list") {
+      showScreen("identity-list");
+    }
+  }
+};
+
+// --- EVENT LISTENERS ---
 function setupEnrollmentModalListener() {
   const closeBtn = document.getElementById("close-success-modal");
   if (closeBtn) {
@@ -750,14 +1162,178 @@ function setupEnrollmentModalListener() {
   }
 }
 
+// --- PASSWORD ---
+function showPasswordInput({
+  target = "password-modal",
+  inputId = target === "vault-password-screen"
+    ? "vault-password-input"
+    : "password-input",
+  submitId = target === "vault-password-screen"
+    ? "vault-password-submit"
+    : "password-submit",
+  cancelId = target === "vault-password-screen" ? null : "password-cancel",
+  errorId = `${inputId}-error`,
+  placeholder = "Password",
+  title = "Masukkan Password",
+  minLength = 8,
+  showCancel = target !== "vault-password-screen",
+  autoFocus = true,
+  isRetryable = false,
+} = {}) {
+  return new Promise((resolve) => {
+    const container = document.getElementById(target);
+    if (!container) {
+      console.error(`Target container "${target}" tidak ditemukan.`);
+      resolve(null);
+      return;
+    }
+
+    const isFullPage = target === "vault-password-screen";
+
+    // ✅ Tampilkan container (full-page: showScreen sudah handle, tp kita pastikan)
+    if (!isFullPage) {
+      container.classList.remove("hidden");
+    }
+
+    // Ambil elemen
+    const input = document.getElementById(inputId);
+    const submitBtn = document.getElementById(submitId);
+    const cancelBtn =
+      showCancel && cancelId ? document.getElementById(cancelId) : null;
+    const errorEl = document.getElementById(errorId);
+
+    if (!input || !submitBtn) {
+      console.error(
+        `Elemen input/submit tidak ditemukan: ${inputId}, ${submitId}`
+      );
+      resolve(null);
+      return;
+    }
+
+    // Reset UI
+    input.placeholder = placeholder;
+    input.value = "";
+    if (errorEl) {
+      errorEl.textContent = "";
+      errorEl.style.display = "none";
+    }
+
+    // ✅ Jika vault screen & full-page — jangan sembunyikan auth-screen
+    // (showScreen("vault-password") sudah handle visibility)
+
+    // Cleanup handler
+    const cleanup = () => {
+      if (!isFullPage) container.classList.add("hidden");
+      // Remove listeners to prevent leaks
+      submitBtn.removeEventListener("click", onSubmit);
+      if (cancelBtn) cancelBtn.removeEventListener("click", onCancel);
+      input.removeEventListener("keydown", onKey);
+    };
+
+    // ✅ VALIDATION & ERROR DISPLAY — reusable
+    const showError = (msg) => {
+      if (errorEl) {
+        errorEl.textContent = msg;
+        errorEl.style.display = "block";
+      }
+      input.focus();
+    };
+
+    const clearError = () => {
+      if (errorEl) {
+        errorEl.textContent = "";
+        errorEl.style.display = "none";
+      }
+    };
+
+    // ✅ SUBMIT HANDLER — now robust with retry support
+    const onSubmit = () => {
+      const pwd = input.value.trim();
+      clearError();
+
+      if (!pwd) {
+        showError("Password tidak boleh kosong.");
+        return;
+      }
+
+      if (pwd.length < minLength) {
+        showError(`Password minimal ${minLength} karakter.`);
+        return;
+      }
+
+      // ✅ Valid → cleanup & resolve
+      cleanup();
+      resolve(pwd);
+    };
+
+    const onCancel = () => {
+      cleanup();
+      resolve(null);
+    };
+
+    const onKey = (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onSubmit();
+      } else if (e.key === "Escape" && cancelBtn) {
+        onCancel();
+      }
+    };
+
+    // ✅ Bind listeners
+    submitBtn.addEventListener("click", onSubmit);
+    if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+    input.addEventListener("keydown", onKey);
+    input.addEventListener("input", clearError); // reset error saat user mengetik
+
+    // Auto-focus
+    if (autoFocus) {
+      setTimeout(() => input.focus(), 50);
+    }
+  });
+}
+
+function setupPasswordToggle({ inputId, eyeId, eyeOffId }) {
+  const input = document.getElementById(inputId);
+  const eye = document.getElementById(eyeId);
+  const eyeOff = document.getElementById(eyeOffId);
+  if (!input || !eye || !eyeOff) return;
+
+  const btn = eye.parentElement; // assuming <button><img id="eye"/><img id="eye-off"/></button>
+  btn?.addEventListener("click", () => {
+    if (input.type === "password") {
+      input.type = "text";
+      eye.classList.add("hidden");
+      eyeOff.classList.remove("hidden");
+    } else {
+      input.type = "password";
+      eye.classList.remove("hidden");
+      eyeOff.classList.add("hidden");
+    }
+  });
+}
+setupPasswordToggle({
+  inputId: "password-input",
+  eyeId: "eye-icon",
+  eyeOffId: "eye-off-icon",
+});
+
+setupPasswordToggle({
+  inputId: "vault-password-input",
+  eyeId: "vault-eye-icon",
+  eyeOffId: "vault-eye-off-icon",
+});
+
 urlInputField.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !urlInputField.disabled) handleUrl();
 });
+
 goButton.addEventListener("click", () => {
   if (!goButton.disabled) handleUrl();
 });
 
 searchButton.addEventListener("click", () => {
+  // 🔧 DIPERBAIKI: hapus spasi
   const url = "https://www.google.com";
   const tab = tabs[currentTabIndex];
   if (tab) {
@@ -787,10 +1363,7 @@ reloadButton.addEventListener("click", () => {
     : tabs[currentTabIndex]?.webview;
   if (webview) webview.reload();
 });
-
 newTabButton.addEventListener("click", () => createBrowserTab());
-
-
 
 // --- MODAL & SIDEBAR ---
 if (identityButton)
@@ -836,48 +1409,97 @@ if (downloadLogButton) {
   downloadLogButton.addEventListener("click", downloadProxyLog);
 }
 
+async function handleInitialState(sessionState) {
+  switch (sessionState.type) {
+    case "no-vault":
+      showScreen("no-vault");
+      authErrorMessage.classList.add("hidden");
+      break;
+    case "need-vault-password":
+      let vaultPassword = null;
+      while (true) {
+        showScreen("vault-password");
+        vaultPassword = await showPasswordInput({
+          target: "vault-password-screen",
+          // errorId: "vault-password-error", // ✅
+          minLength: 8,
+          showCancel: false, // opsional: true jika mau tombol Batal
+          autoFocus: true,
 
-// --- INIT ---
+        });
+        if (vaultPassword === null) {
+          window.location.reload(); // atau handle exit
+          return;
+        }
+        showScreen("processing");
+        const result = await window.electronAPI.unlockVault(vaultPassword);
+        if (result.success) {
+          sessionVaultPassword = vaultPassword;
+          handleVaultUnlocked(result.identities || []);
+          break; 
+        } else {
+
+        }
+      }
+      break;
+    case "empty-vault":
+      showScreen("empty-vault");
+      break;
+
+    case "show-identity-list":
+      showScreen("identity-list"); // ← pastikan ini ada!
+      activeIdentities = sessionState.payload.identities;
+      displayIdentityOnVault();
+      break;
+
+    default:
+      showScreen("no-vault");
+  }
+}
+
 async function init() {
   setupAuthListeners();
-  setupEnrollmentModalListener(); // 👈 penting!
+  setupEnrollmentModalListener();
 
   try {
-    const result = await window.electronAPI.checkSession();
-    if (result.type === "session-restored") {
-      activeIdentities = result.payload.identities;
-      enabledIdentityIds = new Set(
-        activeIdentities.map((id) => id.identity_id)
-      );
+    // 1. Apakah ada identitas aktif di proxy? (artinya session masih jalan)
+    const proxyState = await window.electronAPI.getActiveIdentitiesFromProxy();
+
+    if (proxyState.success && proxyState.identities.length > 0) {
+      // ✅ Ada identitas aktif di proxy → lanjut ke browser
+      activeIdentities = proxyState.identities;
+      await refreshActiveIdentities(); // isi services lengkap
       renderSidebar();
       showScreen("browser");
-      if (tabs.length === 0) createBrowserTab("https://www.google.com");
-    } else if (result.type === "show-auth") {
-      showScreen("authentication");
-    } else if (result.type === "proxy-not-running") {
-      handleAuthFailure("ziti-http-proxy tidak berjalan.");
-      showScreen("authentication");
+      if (tabs.length === 0) {
+        createBrowserTab("https://www.google.com");
+      }
+      return;
     }
+
+    // 2. Jika tidak, cek vault (seperti sebelumnya)
+    const vaultState = await window.electronAPI.checkSession();
+    handleInitialState(vaultState);
   } catch (err) {
-    console.error("Gagal cek sesi:", err);
-    showScreen("authentication");
+    console.error("Init error:", err);
+    showScreen("no-vault");
   }
 
-  window.electronAPI.onSessionRestored((_, payload) => {
-    activeIdentities = payload.identities || [];
-    enabledIdentityIds = new Set(activeIdentities.map((id) => id.identity_id));
-    renderSidebar();
-    showScreen("browser");
-    if (tabs.length === 0) createBrowserTab("https://www.google.com");
+  window.electronAPI.onVaultUpdated(handleVaultUpdated);
+  window.electronAPI.onVaultLocked(() => {
+    window.location.reload();
   });
 
-  window.electronAPI.onShowAuth(() => showScreen("authentication"));
-  window.electronAPI.onProxyNotRunning(() => {
-    handleAuthFailure(
-      "ziti-http-proxy tidak berjalan. Jalankan proxy terlebih dahulu."
-    );
-    showScreen("authentication");
-  });
+  document
+    .getElementById("add-enroll-from-empty")
+    ?.addEventListener("click", () => {
+      document.getElementById("enroll-jwt-file")?.click();
+    });
+  document
+    .getElementById("add-upload-from-empty")
+    ?.addEventListener("click", () => {
+      document.getElementById("identity-file-input")?.click();
+    });
 }
 
 document.addEventListener("DOMContentLoaded", init);
