@@ -103,12 +103,10 @@ function showScreen(screen) {
 
     case "need-vault-password":
       // Tidak perlu tindakan khusus — password-modal akan di-trigger terpisah
-      // (dan memang bukan bagian dar i auth-screen)
+      // (dan memang bukan bagian dari auth-screen)
       break;
     case "vault-password":
-      document
-        .getElementById("vault-password-screen")
-        ?.classList.remove("hidden");
+      document.getElementById("vault-password-screen")?.classList.remove("hidden");
       break;
   }
 }
@@ -586,81 +584,73 @@ window.deleteIdentityFromModal = async function (identityId) {
 };
 // --- END MODAL IDENTITAS WRAPPER ---
 
+
+
 // ------ AUTH PAGE FUNCTIONS ------
+
 function setupAuthListeners() {
+
   // --- ENROLLMENT (first-time) ---
-  if (enrollmentForm) {
-    enrollmentForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const files = Array.from(enrollJwtFile.files); // ✅ multiple
-      if (files.length === 0)
-        return handleAuthFailure("File JWT harus dipilih.");
+if (enrollmentForm) {
+  enrollmentForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const files = Array.from(enrollJwtFile.files); // ✅ multiple
+    if (files.length === 0) return handleAuthFailure("File JWT harus dipilih.");
 
-      const password = await showPasswordInput({
-        target: "password-modal",
-        placeholder: "Password file identitas",
-        title: "Masukkan Password",
-        minLength: 8,
-      });
-      if (!password || password.length < 8) {
-        return handleAuthFailure("Password minimal 8 karakter.");
-      }
+    const password = await showPasswordPrompt();
+    if (!password || password.length < 8) {
+      return handleAuthFailure("Password minimal 8 karakter.");
+    }
 
-      showScreen("processing");
-      try {
-        // ✅ Proses semua file
-        const enrollPromises = files.map(async (file) => {
-          const jwtContent = await file.text();
-          return window.electronAPI.handleEnrollment({
-            jwtContent,
-            fileName: file.name,
-            password,
-          });
+    showScreen("processing");
+    try {
+      // ✅ Proses semua file
+      const enrollPromises = files.map(async (file) => {
+        const jwtContent = await file.text();
+        return window.electronAPI.handleEnrollment({
+          jwtContent,
+          fileName: file.name,
+          password,
         });
+      });
 
-        const results = await Promise.all(enrollPromises);
-        const successful = results.filter((r) => r.success);
+      const results = await Promise.all(enrollPromises);
+      const successful = results.filter(r => r.success);
 
-        if (successful.length === 0) {
-          throw new Error(
-            results
-              .map((r) => r.message)
-              .filter(Boolean)
-              .join("; ") || "Enroll gagal."
-          );
-        }
-
-        // 🔁 Lanjutkan ke auto-login *sekali* seperti sebelumnya (ke identitas pertama)
-        // (atau — opsional — langsung login semua successful identities)
-        const sessionRes = await window.electronAPI.checkSession();
-        if (sessionRes.type !== "show-identity-list") {
-          throw new Error("Vault tidak terbuka setelah enroll.");
-        }
-
-        activeIdentities = sessionRes.payload.identities;
-        const firstId = activeIdentities[0];
-        if (!firstId?.idString) throw new Error("Identitas tanpa idString.");
-
-        // ✅ Login semua identitas yang baru saja di-enroll (lebih konsisten)
-        const newlyEnrolledIds = successful
-          .map((r) => r.identity?.idString)
-          .filter(Boolean);
-        const loginRes =
-          await window.electronAPI.loginSelected(newlyEnrolledIds);
-        if (!loginRes.success) throw new Error(loginRes.message);
-
-        await refreshActiveIdentities();
-        renderSidebar();
-        showScreen("browser");
-        if (tabs.length === 0) createBrowserTab("https://www.google.com");
-      } catch (err) {
-        console.error("Enrollment error:", err);
-        handleAuthFailure(err.message || "Gagal enroll identitas.");
-      } finally {
-        enrollmentForm.reset();
+      if (successful.length === 0) {
+        throw new Error(
+          results.map(r => r.message).filter(Boolean).join("; ") || "Enroll gagal."
+        );
       }
-    });
-  }
+
+      // 🔁 Lanjutkan ke auto-login *sekali* seperti sebelumnya (ke identitas pertama)
+      // (atau — opsional — langsung login semua successful identities)
+      const sessionRes = await window.electronAPI.checkSession();
+      if (sessionRes.type !== "show-identity-list") {
+        throw new Error("Vault tidak terbuka setelah enroll.");
+      }
+
+      activeIdentities = sessionRes.payload.identities;
+      const firstId = activeIdentities[0];
+      if (!firstId?.idString) throw new Error("Identitas tanpa idString.");
+
+      // ✅ Login semua identitas yang baru saja di-enroll (lebih konsisten)
+      const newlyEnrolledIds = successful.map(r => r.identity?.idString).filter(Boolean);
+      const loginRes = await window.electronAPI.loginSelected(newlyEnrolledIds);
+      if (!loginRes.success) throw new Error(loginRes.message);
+
+      await refreshActiveIdentities();
+      renderSidebar();
+      showScreen("browser");
+      if (tabs.length === 0) createBrowserTab("https://www.google.com");
+    } catch (err) {
+      console.error("Enrollment error:", err);
+      handleAuthFailure(err.message || "Gagal enroll identitas.");
+    } finally {
+      enrollmentForm.reset();
+    }
+  });
+}
 
   // --- UPLOAD JSON (first-time) ---
   if (uploadIdentityButton) {
@@ -670,73 +660,65 @@ function setupAuthListeners() {
   }
 
   // --- FILE INPUT CHANGE HANDLER ---
-  document
-    .getElementById("identity-file-input")
-    ?.addEventListener("change", async (e) => {
-      const files = Array.from(e.target.files);
-      if (files.length === 0) {
-        e.target.value = "";
-        return;
-      }
+ document.getElementById("identity-file-input")?.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) {
+      e.target.value = "";
+      return;
+    }
 
-      const password = await showPasswordInput({
-        target: "password-modal",
-        placeholder: "Password file identitas",
-        title: "Masukkan Password",
-        minLength: 8,
-      });
-      if (!password || password.length < 8) {
-        return handleAuthFailure("Password minimal 8 karakter.");
-      }
+    const password = await showPasswordPrompt();
+    if (!password || password.length < 8) {
+      return handleAuthFailure("Password minimal 8 karakter.");
+    }
 
-      showScreen("processing");
-      try {
-        // ✅ Proses semua file
-        const uploadPromises = files.map(async (file) => {
-          const textContent = await file.text();
-          return window.electronAPI.handleIdentityUpload({
-            identityFile: textContent,
-            fileName: file.name,
-            password: password,
-          });
+    showScreen("processing");
+    try {
+      // ✅ Proses semua file
+      const uploadPromises = files.map(async (file) => {
+        const textContent = await file.text();
+        return window.electronAPI.handleIdentityUpload({
+          identityFile: textContent,
+          fileName: file.name,
+          password: password,
         });
+      });
 
-        const results = await Promise.all(uploadPromises);
-        const successful = results.filter((r) => r.success);
-        if (successful.length === 0) {
-          throw new Error(
-            results
-              .map((r) => r.message)
-              .filter(Boolean)
-              .join("; ") || "Upload gagal."
-          );
-        }
-
-        // ✅ Login semua identitas yang baru diupload
-        const newIds = successful
-          .map((r) => r.identity?.idString)
-          .filter(Boolean);
-        if (newIds.length === 0) {
-          throw new Error("Tidak ada identitas valid untuk login.");
-        }
-
-        const loginRes = await window.electronAPI.loginSelected(newIds);
-        if (!loginRes.success) {
-          throw new Error(loginRes.message || "Gagal login otomatis.");
-        }
-
-        // ✅ Lanjut ke browser
-        await refreshActiveIdentities();
-        renderSidebar();
-        showScreen("browser");
-        if (tabs.length === 0) createBrowserTab("https://www.google.com");
-      } catch (err) {
-        console.error("Multi-upload (first-time) error:", err);
-        handleAuthFailure(err.message || "Gagal memproses identitas.");
-      } finally {
-        e.target.value = "";
+      const results = await Promise.all(uploadPromises);
+      const successful = results.filter((r) => r.success);
+      if (successful.length === 0) {
+        throw new Error(
+          results
+            .map((r) => r.message)
+            .filter(Boolean)
+            .join("; ") || "Upload gagal."
+        );
       }
-    });
+
+      // ✅ Login semua identitas yang baru diupload
+      const newIds = successful.map((r) => r.identity?.idString).filter(Boolean);
+      if (newIds.length === 0) {
+        throw new Error("Tidak ada identitas valid untuk login.");
+      }
+
+      const loginRes = await window.electronAPI.loginSelected(newIds);
+      if (!loginRes.success) {
+        throw new Error(loginRes.message || "Gagal login otomatis.");
+      }
+
+      // ✅ Lanjut ke browser
+      await refreshActiveIdentities();
+      renderSidebar();
+      showScreen("browser");
+      if (tabs.length === 0) createBrowserTab("https://www.google.com");
+
+    } catch (err) {
+      console.error("Multi-upload (first-time) error:", err);
+      handleAuthFailure(err.message || "Gagal memproses identitas.");
+    } finally {
+      e.target.value = "";
+    }
+  });
 }
 
 window.handleLoginSelection = async function () {
@@ -972,22 +954,14 @@ async function triggerFileUpload(type) {
 
   input.onchange = async (e) => {
     const files = Array.from(e.target.files);
-    console.log(
-      `[DEBUG] Upload ${type}: memilih ${files.length} file`,
-      files.map((f) => f.name)
-    );
+    console.log(`[DEBUG] Upload ${type}: memilih ${files.length} file`, files.map(f => f.name));
     if (files.length === 0) {
       input.remove();
       return;
     }
 
     if (!sessionVaultPassword) {
-      const password = await showPasswordInput({
-        target: "password-modal",
-        placeholder: "Password file identitas",
-        title: "Masukkan Password",
-        minLength: 8,
-      });
+      const password = await showPasswordPrompt();
       if (!password || password.length < 8) {
         input.remove();
         return alert("Password minimal 8 karakter.");
@@ -1015,21 +989,18 @@ async function triggerFileUpload(type) {
       });
 
       const results = await Promise.all(uploadPromises);
-      const successful = results.filter((r) => r.success);
-      const failed = results.filter((r) => !r.success);
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
 
       if (successful.length === 0) {
         throw new Error(
-          failed
-            .map((r) => r.message)
-            .filter(Boolean)
-            .join("; ") || "Semua file gagal diproses."
+          failed.map(r => r.message).filter(Boolean).join("; ") || "Semua file gagal diproses."
         );
       }
 
       // ✅ Auto-login semua identitas baru
       const newIds = successful
-        .map((r) => r.identity?.idString)
+        .map(r => r.identity?.idString)
         .filter(Boolean);
       if (newIds.length > 0) {
         const loginRes = await window.electronAPI.loginSelected(newIds);
@@ -1040,8 +1011,7 @@ async function triggerFileUpload(type) {
 
       // ✅ UI feedback
       const toast = document.createElement("div");
-      toast.className =
-        "fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 text-white";
+      toast.className = "fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 text-white";
       if (successful.length === 1) {
         toast.classList.add("bg-green-600");
         toast.textContent = `✅ ${successful[0].message}`;
@@ -1053,11 +1023,10 @@ async function triggerFileUpload(type) {
       setTimeout(() => toast.remove?.(), 4000);
 
       await handleVaultUpdated(); // refresh identity list
+
     } catch (err) {
       console.error(`[triggerFileUpload ${type}] Error:`, err);
-      handleAuthFailure(
-        err.message || `Gagal memproses file ${type.toUpperCase()}.`
-      );
+      handleAuthFailure(err.message || `Gagal memproses file ${type.toUpperCase()}.`);
     } finally {
       input.remove();
       if (currentScreen !== "identity-list") {
@@ -1086,12 +1055,7 @@ window.RemoveIdentityFromVault = async function () {
 
   // Gunakan password sesi yang sudah ada — jangan minta ulang tiap hapus
   if (!sessionVaultPassword) {
-    const password = await showPasswordInput({
-      target: "password-modal",
-      placeholder: "Password file identitas",
-      title: "Masukkan Password",
-      minLength: 8,
-    });
+    const password = await showPasswordPrompt();
     if (!password || password.length < 8) {
       return alert("Password minimal 8 karakter.");
     }
@@ -1142,6 +1106,7 @@ window.RemoveIdentityFromVault = async function () {
   }
 };
 
+
 // --- EVENT LISTENERS ---
 function setupEnrollmentModalListener() {
   const closeBtn = document.getElementById("close-success-modal");
@@ -1163,105 +1128,40 @@ function setupEnrollmentModalListener() {
 }
 
 // --- PASSWORD ---
-function showPasswordInput({
-  target = "password-modal",
-  inputId = target === "vault-password-screen"
-    ? "vault-password-input"
-    : "password-input",
-  submitId = target === "vault-password-screen"
-    ? "vault-password-submit"
-    : "password-submit",
-  cancelId = target === "vault-password-screen" ? null : "password-cancel",
-  errorId = `${inputId}-error`,
-  placeholder = "Password",
-  title = "Masukkan Password",
-  minLength = 8,
-  showCancel = target !== "vault-password-screen",
-  autoFocus = true,
-  isRetryable = false,
-} = {}) {
+function showPasswordPrompt({ minLength = 8, context = "vault" } = {}) {
   return new Promise((resolve) => {
-    const container = document.getElementById(target);
-    if (!container) {
-      console.error(`Target container "${target}" tidak ditemukan.`);
-      resolve(null);
-      return;
+    const modal = document.getElementById("password-modal");
+    const input = document.getElementById("password-input");
+    const submitBtn = document.getElementById("password-submit");
+    const cancelBtn = document.getElementById("password-cancel");
+    const errorMsg = document.createElement("p");
+    errorMsg.className = "text-red-500 text-sm mt-1";
+    errorMsg.style.display = "none";
+    const inputContainer = input.parentElement;
+    if (!inputContainer.querySelector("p.text-red-500")) {
+      inputContainer.appendChild(errorMsg);
     }
 
-    const isFullPage = target === "vault-password-screen";
-
-    // ✅ Tampilkan container (full-page: showScreen sudah handle, tp kita pastikan)
-    if (!isFullPage) {
-      container.classList.remove("hidden");
-    }
-
-    // Ambil elemen
-    const input = document.getElementById(inputId);
-    const submitBtn = document.getElementById(submitId);
-    const cancelBtn =
-      showCancel && cancelId ? document.getElementById(cancelId) : null;
-    const errorEl = document.getElementById(errorId);
-
-    if (!input || !submitBtn) {
-      console.error(
-        `Elemen input/submit tidak ditemukan: ${inputId}, ${submitId}`
-      );
-      resolve(null);
-      return;
-    }
-
-    // Reset UI
-    input.placeholder = placeholder;
     input.value = "";
-    if (errorEl) {
-      errorEl.textContent = "";
-      errorEl.style.display = "none";
-    }
+    errorMsg.style.display = "none";
+    modal.classList.remove("hidden");
 
-    // ✅ Jika vault screen & full-page — jangan sembunyikan auth-screen
-    // (showScreen("vault-password") sudah handle visibility)
-
-    // Cleanup handler
     const cleanup = () => {
-      if (!isFullPage) container.classList.add("hidden");
-      // Remove listeners to prevent leaks
+      modal.classList.add("hidden");
       submitBtn.removeEventListener("click", onSubmit);
-      if (cancelBtn) cancelBtn.removeEventListener("click", onCancel);
+      cancelBtn.removeEventListener("click", onCancel);
       input.removeEventListener("keydown", onKey);
+      errorMsg.style.display = "none";
     };
 
-    // ✅ VALIDATION & ERROR DISPLAY — reusable
-    const showError = (msg) => {
-      if (errorEl) {
-        errorEl.textContent = msg;
-        errorEl.style.display = "block";
-      }
-      input.focus();
-    };
-
-    const clearError = () => {
-      if (errorEl) {
-        errorEl.textContent = "";
-        errorEl.style.display = "none";
-      }
-    };
-
-    // ✅ SUBMIT HANDLER — now robust with retry support
     const onSubmit = () => {
       const pwd = input.value.trim();
-      clearError();
-
-      if (!pwd) {
-        showError("Password tidak boleh kosong.");
-        return;
-      }
-
       if (pwd.length < minLength) {
-        showError(`Password minimal ${minLength} karakter.`);
+        errorMsg.textContent = `Password minimal ${minLength} karakter.`;
+        errorMsg.style.display = "block";
+        input.focus();
         return;
       }
-
-      // ✅ Valid → cleanup & resolve
       cleanup();
       resolve(pwd);
     };
@@ -1272,57 +1172,120 @@ function showPasswordInput({
     };
 
     const onKey = (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        onSubmit();
-      } else if (e.key === "Escape" && cancelBtn) {
-        onCancel();
-      }
+      if (e.key === "Enter") onSubmit();
+      if (e.key === "Escape") onCancel();
     };
 
-    // ✅ Bind listeners
     submitBtn.addEventListener("click", onSubmit);
-    if (cancelBtn) cancelBtn.addEventListener("click", onCancel);
+    cancelBtn.addEventListener("click", onCancel);
     input.addEventListener("keydown", onKey);
-    input.addEventListener("input", clearError); // reset error saat user mengetik
-
-    // Auto-focus
-    if (autoFocus) {
-      setTimeout(() => input.focus(), 50);
-    }
+    input.focus();
   });
 }
 
-function setupPasswordToggle({ inputId, eyeId, eyeOffId }) {
-  const input = document.getElementById(inputId);
-  const eye = document.getElementById(eyeId);
-  const eyeOff = document.getElementById(eyeOffId);
-  if (!input || !eye || !eyeOff) return;
+function setupVaultPasswordScreen() {
+  const input = document.getElementById("vault-password-input");
+  const submitBtn = document.getElementById("vault-password-submit");
+  const cancelBtn = document.getElementById("vault-password-cancel");
+  const errorEl = document.getElementById("vault-password-error");
 
-  const btn = eye.parentElement; // assuming <button><img id="eye"/><img id="eye-off"/></button>
-  btn?.addEventListener("click", () => {
-    if (input.type === "password") {
-      input.type = "text";
-      eye.classList.add("hidden");
-      eyeOff.classList.remove("hidden");
+  // Reset UI
+  input.value = "";
+  errorEl.textContent = "";
+  errorEl.style.display = "none";
+  input.focus();
+
+  // Listener (gunakan once agar tidak double-bind)
+  submitBtn.removeEventListener("click", onSubmit);
+  cancelBtn.removeEventListener("click", onCancel);
+  input.removeEventListener("keydown", onKey);
+
+  submitBtn.addEventListener("click", onSubmit);
+  cancelBtn.addEventListener("click", onCancel);
+  input.addEventListener("keydown", onKey);
+
+  function onSubmit() {
+    const pwd = input.value.trim();
+    if (pwd.length < 8) {
+      errorEl.textContent = "Password minimal 8 karakter.";
+      errorEl.style.display = "block";
+      input.focus();
+      return;
+    }
+
+    errorEl.style.display = "none";
+    showScreen("processing");
+
+    window.electronAPI
+      .unlockVault(pwd)
+      .then((result) => {
+        if (result.success) {
+          sessionVaultPassword = pwd;
+          handleVaultUnlocked(result.identities || []);
+        } else {
+          // ❌ Kembali ke vault-password-screen + tampilkan error
+          showScreen("vault-password");
+          errorEl.textContent = result.message || "Password salah.";
+          errorEl.style.display = "block";
+          setTimeout(() => input.focus(), 50);
+        }
+      })
+      .catch((err) => {
+        console.error("Unlock vault error:", err);
+        showScreen("vault-password");
+        errorEl.textContent = err.message || "Gagal membuka vault.";
+        errorEl.style.display = "block";
+        setTimeout(() => input.focus(), 50);
+      });
+  }
+
+  function onCancel() {
+    // Opsi: kembali ke no-vault / reload / keluar
+    if (confirm("Batalkan dan mulai dari awal?\nVault tidak akan dibuka.")) {
+      window.location.reload(); // atau showScreen("no-vault") + vault reset via API
     } else {
-      input.type = "password";
-      eye.classList.remove("hidden");
-      eyeOff.classList.add("hidden");
+      input.focus();
     }
-  });
+  }
+
+  function onKey(e) {
+    if (e.key === "Enter") onSubmit();
+    else if (e.key === "Escape") onCancel();
+  }
 }
-setupPasswordToggle({
-  inputId: "password-input",
-  eyeId: "eye-icon",
-  eyeOffId: "eye-off-icon",
+
+document.getElementById('toggle-password-visibility').addEventListener('click', function() {
+  const passwordInput = document.getElementById('password-input');
+  const eyeIcon = document.getElementById('eye-icon');
+  const eyeOffIcon = document.getElementById('eye-off-icon');
+  
+  if (passwordInput.type === 'password') {
+    passwordInput.type = 'text';
+    eyeIcon.classList.add('hidden');
+    eyeOffIcon.classList.remove('hidden');
+  } else {
+    passwordInput.type = 'password';
+    eyeIcon.classList.remove('hidden');
+    eyeOffIcon.classList.add('hidden');
+  }
 });
 
-setupPasswordToggle({
-  inputId: "vault-password-input",
-  eyeId: "vault-eye-icon",
-  eyeOffId: "vault-eye-off-icon",
+// Toggle visibility vault password
+document.getElementById('toggle-vault-password-visibility')?.addEventListener('click', function() {
+  const input = document.getElementById('vault-password-input');
+  const eye = document.getElementById('vault-eye-icon');
+  const eyeOff = document.getElementById('vault-eye-off-icon');
+  if (input.type === 'password') {
+    input.type = 'text';
+    eye.classList.add('hidden');
+    eyeOff.classList.remove('hidden');
+  } else {
+    input.type = 'password';
+    eye.classList.remove('hidden');
+    eyeOff.classList.add('hidden');
+  }
 });
+
 
 urlInputField.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !urlInputField.disabled) handleUrl();
@@ -1409,39 +1372,19 @@ if (downloadLogButton) {
   downloadLogButton.addEventListener("click", downloadProxyLog);
 }
 
-async function handleInitialState(sessionState) {
+function handleInitialState(sessionState) {
   switch (sessionState.type) {
     case "no-vault":
       showScreen("no-vault");
       authErrorMessage.classList.add("hidden");
       break;
+
     case "need-vault-password":
-      let vaultPassword = null;
-      while (true) {
-        showScreen("vault-password");
-        vaultPassword = await showPasswordInput({
-          target: "vault-password-screen",
-          // errorId: "vault-password-error", // ✅
-          minLength: 8,
-          showCancel: false, // opsional: true jika mau tombol Batal
-          autoFocus: true,
-
-        });
-        if (vaultPassword === null) {
-          window.location.reload(); // atau handle exit
-          return;
-        }
-        showScreen("processing");
-        const result = await window.electronAPI.unlockVault(vaultPassword);
-        if (result.success) {
-          sessionVaultPassword = vaultPassword;
-          handleVaultUnlocked(result.identities || []);
-          break; 
-        } else {
-
-        }
-      }
+      // 🔐 Mulai use case 2: minta password
+      showScreen("vault-password");
+      setupVaultPasswordScreen(); // ⬅️ dipanggil sekali
       break;
+
     case "empty-vault":
       showScreen("empty-vault");
       break;

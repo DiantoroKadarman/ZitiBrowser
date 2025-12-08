@@ -325,12 +325,7 @@
         <!-- Vault Password Screen -->
 <div id="vault-password-screen" class="hidden flex flex-col items-center justify-center min-h-screen p-4">
   <div class="w-full max-w-md bg-white p-6 rounded-xl shadow-2xl">
-    <h2 class="text-xl font-semibold text-gray-800 mb-4">Masukkan Password</h2>
-    <div>
-      <p class="text-sm text-gray-500 mb-6 text-left">
-            Anda sudah memiliki identitas yang tersimpan, silahkan masukkan password untuk melanjutkan! 
-          </p>
-    </div>
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Masukkan Password Vault</h2>
     <div class="relative mb-4">
       <input
         type="password"
@@ -344,9 +339,9 @@
         <img id="vault-eye-off-icon" src="/icon/eye-off.svg" class="w-5 h-5 hidden" />
       </button>
     </div>
-    <div class="text-red-500 text-sm h-5 mb-4" id="vault-password-input-error"></div>
+    <div class="text-red-500 text-sm h-5 mb-4" id="vault-password-error"></div>
     <div class="flex justify-end space-x-2">
-      <!-- <button id="vault-password-cancel" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md">Batal</button> -->
+      <button id="vault-password-cancel" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md hidden">Batal</button>
       <button id="vault-password-submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Lanjutkan</button>
     </div>
   </div>
