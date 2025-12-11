@@ -5,8 +5,10 @@ module.exports = {
   packagerConfig: {
     asar: true,
     productName: "zitibrowser",
+    icon: "./assets/logo-browser",
     extraResource: [
-      "assets", 
+      "./assets/", 
+      "./public/icon/", 
     ],
   },
   rebuildConfig: {},

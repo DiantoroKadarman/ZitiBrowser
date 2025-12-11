@@ -39,16 +39,6 @@ body {
   padding: 0.25rem !important;
 }
 
-/* Menyembunyikan Scrollbar */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
 /* Styling Tab Container (yang bertindak sebagai Sidebar) */
 #tabs-container {
   display: flex;
@@ -83,9 +73,10 @@ body {
   border: none;
   background: transparent;
   outline: none;
-  padding: 0 1rem;
+  padding: 1rem;
   height: 100%;
-  font-size: 0.87rem; /* text-sm */
+  font-size: 0.85rem; /* text-sm */
+  text-align: justify;
   color: #6d6d6d;
   border-radius: 9999px; /* rounded-full */
 }
@@ -135,14 +126,26 @@ body {
 }
 
 
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db #f3f4f6;
+}
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
   height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background-color: #d1d5db;
   border-radius: 10px;
 }
-.scrollbar-thin::-webkit-scrollbar-track {
-  background-color: #f3f4f6;
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
