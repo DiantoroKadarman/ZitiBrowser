@@ -57,11 +57,7 @@
           <div
             class="bg-gray-50 h-7 rounded-full flex items-center w-full border border-gray-300"
           >
-            <input
-              id="url-input"
-              required
-              placeholder="URL atau pencarian"
-            />
+            <input id="url-input" required placeholder="URL atau pencarian" />
           </div>
         </form>
         <button id="go" class="hidden">go</button>
@@ -95,7 +91,7 @@
       <!-- Main Content Area -->
       <div class="flex flex-grow overflow-hidden">
         <!-- SIDEBAR -->
-        <aside id="sidebar" class="sidebar bg-white flex flex-col p-4">
+        <aside id="sidebar" class="sidebar bg-white flex flex-col p-4 ">
           <button
             id="collapse-btn"
             class="left-0 mb-4 bg flex items-center justify-center w-6 h-6 rounded-full transition-transform duration-300 transform"
@@ -103,7 +99,10 @@
             <img src="./icon/sidebar.svg" alt="" class="w-5 h-5" />
           </button>
 
-          <div id="sidebar-content" class="flex-grow overflow-y-auto space-y-4 scrollbar-thin">
+          <div
+            id="sidebar-content"
+            class="flex-grow overflow-y-auto space-y-4 scrollbar-thin"
+          >
             <div>
               <div class="text-xs font-semibold text-gray-600 uppercase mb-2">
                 TABS
@@ -127,10 +126,10 @@
         </aside>
 
         <!-- Content Area -->
-        <main id="main-content" class="main-content flex-grow bg-gray-200">
+        <main id="main-content" class="main-content flex-grow">
           <div
             id="webview-container"
-            class="w-full h-full border rounded-full"
+            class="w-full h-full relative overflow-hidden"
           ></div>
         </main>
       </div>
@@ -151,7 +150,10 @@
         </div>
 
         <!-- Scrollable Content -->
-        <div id="identity-details-content" class="p-4 overflow-y-auto flex-1 rounded-xl">
+        <div
+          id="identity-details-content"
+          class="p-4 overflow-y-auto flex-1 rounded-xl"
+        >
           <!-- Konten diisi oleh JS -->
         </div>
 
@@ -166,20 +168,29 @@
             Logout
           </button>
         </div>
-        </div>
       </div>
     </div>
 
     <!-- WRAPPER AUTH SCREEN -->
     <div
       id="auth-screen"
-      class="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center z-50 p-4 border-2 border-gray-300"
+      class="fixed inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center"
     >
+      <!-- Background gambar sebagai layer bawah -->
+      <div
+        class="absolute inset-0 bg-cover bg-center z-[-1]"
+        style="background-image: url(./bg/bg-img-auth.jpg)"
+      ></div>
+
       <!-- Glass-like modal container -->
-      <div id="auth-div" class="w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
+      <div
+        id="auth-div"
+        class="w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden"
+      >
         <!-- Auth Box (Initial/Empty) -->
-        <div id="auth-box"
-          class="bg-white p-6 sm:p-8 rounded-2xl   border border-gray-300 transition-all duration-300"
+        <div
+          id="auth-box"
+          class="bg-white p-6 sm:p-8 rounded-2xl border border-gray-300 transition-all duration-300"
         >
           <h2 class="text-2xl font-bold text-gray-900 mb-2 text-center">
             Ziti Browser
@@ -188,12 +199,6 @@
             Selamat datang di Ziti Browser! Silakan unggah identitas Anda untuk
             mengakses jaringan Ziti.
           </p>
-
-          <div
-            id="auth-error-message"
-            class="hidden bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-lg mb-5"
-            role="alert"
-          ></div>
 
           <div
             id="initial-setup-message"
@@ -216,19 +221,21 @@
             </ul>
           </div>
 
+          <!-- message untuk vault kosong -->
           <div
             id="empty-vault-message"
-            class="hidden bg-amber-50 border border-amber-200 text-amber-700 px-4 py-4 rounded-lg mb-5 text-sm text-center"
+            class="hidden bg-amber-50 border border-amber-200 text-amber-700 px-4 py-4 rounded-lg mb-5 text-sm justify-center"
           >
             <p class="font-medium">Vault masih kosong.</p>
             <p class="mt-1">
-              Tambahkan identitas untuk mulai menggunakan Ziti Browser.
+              Tambahkan identitas untuk mulai menggunakan Ziti Browser, lalu
+              masukkan password anda sebelumnya.
             </p>
           </div>
 
           <button
             id="upload-identity-button"
-            class="w-full mb-5 py-3 px-4 rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 font-medium flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+            class="w-full py-2 rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 font-medium flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
           >
             <img src="./icon/upload.svg" alt="" class="w-5 h-5 mr-2" />
             Unggah File Identitas (.json)
@@ -242,7 +249,7 @@
             <div class="flex-grow border-t border-gray-200"></div>
           </div>
 
-          <form id="enrollment-form" class="mt-5">
+          <form id="enrollment-form" class="mt-1">
             <div class="mb-4">
               <label
                 for="enroll-jwt-file"
@@ -260,7 +267,7 @@
             </div>
             <button
               type="submit"
-              class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
+              class="w-full py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50"
             >
               Enroll & Simpan Identitas
             </button>
@@ -268,8 +275,9 @@
         </div>
 
         <!-- Identity List Screen (sudah ada identitas di vault) -->
-        <div id="identity-list-screen"
-          class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-gray-200 mt-5 flex flex-col overflow-hidden"
+        <div
+          id="identity-list-screen"
+          class="hidden bg-white p-6 sm:p-8 rounded-2xl border border-gray-300 mt-5 flex flex-col overflow-hidden"
         >
           <h2 class="text-2xl font-bold text-gray-900 mb-2 text-center">
             Pilih Identitas
@@ -284,12 +292,12 @@
           </div>
 
           <!-- Fixed action bar -->
-          <div class="mt-4 pt-4 border-t border-gray-100 space-y-3">
+          <div class="pt-3 border-t border-gray-100 space-y-3">
             <button
               id="login-btn"
               onclick="handleLoginSelection()"
               disabled
-              class="w-full py-3 px-4 bg-green-600 text-white rounded-xl opacity-50 cursor-not-allowed font-medium shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
+              class="w-full py-2 bg-green-600 text-white rounded-xl opacity-50 cursor-not-allowed font-medium shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
             >
               <img src="./icon/select.svg" alt="" class="w-5 h-5" />
               Pilih Identitas
@@ -297,7 +305,7 @@
 
             <button
               onclick="showUploadIdentityDialog()"
-              class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
+              class="w-full py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
             >
               <img src="./icon/user-add.svg" alt="" class="w-5 h-5" />
               Tambah Identitas Baru
@@ -305,7 +313,7 @@
 
             <button
               onclick="RemoveIdentityFromVault()"
-              class="w-full py-3 px-4 bg-red-600 text-white rounded-xl hover:bg-red-700 active:bg-red-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
+              class="w-full py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 active:bg-red-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
             >
               <img src="./icon/trash-white.svg" alt="" class="w-5 h-5" />
               Hapus Identitas
@@ -313,7 +321,7 @@
 
             <button
               onclick="handleLogout()"
-              class="w-full py-3 px-4 bg-gray-600 text-white rounded-xl hover:bg-gray-700 active:bg-gray-900 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
+              class="w-full py-2 bg-gray-600 text-white rounded-xl hover:bg-gray-700 active:bg-gray-900 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
             >
               <img src="./icon/lock-white.svg" alt="" class="w-5 h-5" />
               Kunci Vault (Logout)
@@ -322,16 +330,23 @@
         </div>
 
         <!-- Vault Password Screen -->
-        <div id="vault-password-screen" class="hidden flex flex-col items-center justify-center min-h-screen p-4">
-          <div class="w-full max-w-md bg-white p-6 rounded-xl shadow-2xl">
-            <h2 class="text-xl font-semibold text-gray-800 mb-2">Akses Identitas Anda</h2>
+        <div
+          id="vault-password-screen"
+          class="hidden flex flex-col items-center justify-center min-h-screen p-4"
+        >
+          <div class="w-full max-w-md bg-white p-6 rounded-xl shadow-xl">
+            <h2 class="text-xl font-semibold text-gray-800 mb-2">
+              Akses Identitas Anda
+            </h2>
 
+            <!-- ✅ Bungkus instruksi seperti contoh -->
             <div
               id="vault-password-instruction"
               class="bg-orange-50 border border-orange-200 text-orange-500 px-4 py-4 rounded-lg mb-5 text-sm"
             >
               <p class="mb-0">
-                Anda memiliki identitas yang tersimpan di vault. Masukkan password vault untuk membuka dan melanjutkan.
+                Anda memiliki identitas yang tersimpan di vault. Masukkan
+                password vault untuk membuka dan melanjutkan.
               </p>
             </div>
 
@@ -343,19 +358,38 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 autofocus
               />
-              <button id="toggle-vault-password-visibility" class="absolute right-3 top-2.5 text-gray-500">
+              <button
+                id="toggle-vault-password-visibility"
+                class="absolute right-3 top-2.5 text-gray-500"
+              >
                 <img id="vault-eye-icon" src="/icon/eye.svg" class="w-5 h-5" />
-                <img id="vault-eye-off-icon" src="/icon/eye-off.svg" class="w-5 h-5 hidden" />
+                <img
+                  id="vault-eye-off-icon"
+                  src="/icon/eye-off.svg"
+                  class="w-5 h-5 hidden"
+                />
               </button>
             </div>
-            <div class="text-red-500 text-sm h-5 mb-4" id="vault-password-error"></div>
+            <div
+              class="text-red-500 text-sm h-5 mb-4"
+              id="vault-password-error"
+            ></div>
             <div class="flex justify-end space-x-2">
-              <button id="vault-password-cancel" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md hidden">Batal</button>
-              <button id="vault-password-submit" class="px-4 py-2 bg-indigo-600 text-center text-white rounded-xl hover:bg-indigo-700">Lanjutkan</button>
+              <button
+                id="vault-password-cancel"
+                class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md hidden"
+              >
+                Batal
+              </button>
+              <button
+                id="vault-password-submit"
+                class="px-4 py-2 bg-indigo-600 text-center text-white rounded-xl hover:bg-indigo-700"
+              >
+                Lanjutkan
+              </button>
             </div>
           </div>
         </div>
-        
       </div>
     </div>
     <!-- END WRAPPER AUTH SCREEN -->
@@ -370,67 +404,78 @@
     />
 
     <!-- Password Modal -->
-<div id="password-modal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
->
-  <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
-    <h3 class="text-lg font-medium text-gray-900 mb-2">
-      Atur Password Vault
-    </h3>
+    <div
+      id="password-modal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
+    >
+      <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md">
+        <h3 class="text-lg font-medium text-gray-900 mb-2">
+          Atur Password Ziti Browser
+        </h3>
 
-    <!-- ✅ Deskripsi dalam card biru, seperti contoh -->
-    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-4 rounded-lg mb-5 text-sm">
-      <p class="font-medium mb-2">Catatan keamanan:</p>
-      <p class="mb-0">
-        - Password ini digunakan untuk mengenkripsi identitas yang disimpan ke dalam vault
-      </p>
-      <p class="mb-0">
-        - Password hanya diatur sekali dan tidak dapat diubah nanti. 
-      </p>
-      <p class="font-medium mb-0">
-        - PASTIKAN ANDA MENGINGATNYA! 
-      </p>
+        <div
+          class="bg-red-50 border border-red-200 text-red-700 px-4 py-4 rounded-lg mb-5 text-sm"
+        >
+          <p class="font-medium mb-2">Catatan keamanan:</p>
+          <p class="mb-0">
+            - Password ini digunakan untuk mengenkripsi identitas yang disimpan
+            ke dalam aplikasi (ziti-vault)
+          </p>
+          <p class="mb-0">
+            - Password hanya diatur sekali dan tidak dapat diubah nanti.
+          </p>
+          <p class="font-medium mb-0">- PASTIKAN ANDA MENGINGATNYA!</p>
+        </div>
 
+        <div class="relative">
+          <input
+            type="password"
+            id="password-input"
+            placeholder="Masukkan password vault"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            autofocus
+          />
+          <button
+            type="button"
+            id="toggle-password-visibility"
+            class="absolute right-3 top-3 text-gray-500 hover:text-indigo-600 focus:outline-none"
+            aria-label="Toggle password visibility"
+          >
+            <img
+              id="eye-icon"
+              src="/icon/eye.svg"
+              alt="Tampilkan password"
+              class="w-5 h-5"
+            />
+            <img
+              id="eye-off-icon"
+              src="/icon/eye-off.svg"
+              alt="Sembunyikan password"
+              class="w-5 h-5 hidden"
+            />
+          </button>
+        </div>
+
+        <div class="flex justify-end space-x-2">
+          <button
+            id="password-cancel"
+            class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
+          >
+            Batal
+          </button>
+          <button
+            id="password-submit"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          >
+            Simpan & Lanjutkan
+          </button>
+        </div>
+      </div>
     </div>
-
-    <div class="relative">
-      <input
-        type="password"
-        id="password-input"
-        placeholder="Masukkan password vault"
-        class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        autofocus
-      />
-      <button
-        type="button"
-        id="toggle-password-visibility"
-        class="absolute right-3 top-3 text-gray-500 hover:text-indigo-600 focus:outline-none"
-        aria-label="Toggle password visibility"
-      >
-        <img id="eye-icon" src="/icon/eye.svg" alt="Tampilkan password" class="w-5 h-5" />
-        <img id="eye-off-icon" src="/icon/eye-off.svg" alt="Sembunyikan password" class="w-5 h-5 hidden"/>
-      </button>
-    </div>
-
-    <div class="flex justify-end space-x-2">
-      <button
-        id="password-cancel"
-        class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md"
-      >
-        Batal
-      </button>
-      <button
-        id="password-submit"
-        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-      >
-        Simpan & Lanjutkan
-      </button>
-    </div>
-  </div>
-</div>
 
     <!-- Modal Proxy Log -->
-    <div id="log-modal"
+    <div
+      id="log-modal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
     >
       <div

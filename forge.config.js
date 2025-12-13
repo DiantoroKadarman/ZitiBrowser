@@ -4,8 +4,8 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 module.exports = {
   packagerConfig: {
     asar: true,
-    productName: "zitibrowser",
-    icon: "./assets/logo-browser",
+    productName: "Ziti Browser",
+    icon: "./assets/LogoZB",
     extraResource: [
       "./assets/", 
       "./public/icon/", 
@@ -16,7 +16,7 @@ module.exports = {
     {
       name: "@electron-forge/maker-squirrel",
       config: {
-        name: "zitibrowser",
+        name: "ZitiBrowser",
       },
     },
     {

@@ -31,7 +31,6 @@ const authBox = document.getElementById("auth-box");
 const authDiv = document.getElementById("auth-div");
 const enrollmentForm = document.getElementById("enrollment-form");
 const enrollJwtFile = document.getElementById("enroll-jwt-file");
-const authErrorMessage = document.getElementById("auth-error-message");
 const uploadIdentityButton = document.getElementById("upload-identity-button");
 
 // --- INDICATOR PROSES ---
@@ -76,7 +75,6 @@ function showScreen(screen) {
   document.getElementById("identity-list-screen")?.classList.add("hidden");
   document.getElementById("vault-password-screen")?.classList.add("hidden");
   processingIndicator.classList.add("hidden");
-  authErrorMessage.classList.add("hidden");
 
   switch (screen) {
     case "no-vault":
@@ -110,18 +108,15 @@ function showScreen(screen) {
       break;
     case "vault-password":
       console.log("Menampilkan layar password vault");
-      document.getElementById("vault-password-screen")?.classList.remove("hidden");
+      document
+        .getElementById("vault-password-screen")
+        ?.classList.remove("hidden");
       break;
     case "browser":
       authScreen.classList.add("hidden");
       browserContainer.classList.remove("hidden");
       break;
   }
-}
-
-function handleAuthFailure(message) {
-  authErrorMessage.innerHTML = `<span class="block sm:inline">${message}</span>`;
-  authErrorMessage.classList.remove("hidden");
 }
 
 function showWebview(targetWebview) {
@@ -193,12 +188,13 @@ function renderSidebar() {
           return `
             <button type="button" class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-blue-200 font-semibold" : ""}"
               onclick="openServiceTab('${identity.identity_id}', '${service.replace(/'/g, "\\'")}')"
-              title="Akses: http://${service}">
+              title="Akses: ${service}">
               <span class='text-sm'>${service}</span>
             </button>
           `;
         })
-        .join("") || '<p class="text-gray-500 px-2">Identity tidak mempunyai service</p>';
+        .join("") ||
+      '<p class="text-gray-500 px-2">Identity tidak mempunyai service</p>';
 
     html += `
       <div class="mb-4">
@@ -237,12 +233,15 @@ window.openServiceTab = async function (identityId, serviceName) {
   }
 
   const fullUrl = `${protocol}://${serviceName}`;
-
   const webview = document.createElement("webview");
   webview.setAttribute("nodeintegration", "false");
   webview.setAttribute("plugins", "false");
   webview.setAttribute("disablewebsecurity", "false");
-  webview.setAttribute("allowpopups", "true"); // ✅
+  webview.setAttribute("allowpopups", "true");
+  webview.setAttribute(
+    "webpreferences",
+    "contextIsolation=true, nativeWindowOpen=true"
+  );
   webview.style.width = "100%";
   webview.style.height = "100%";
   webview.classList.add("hidden");
@@ -279,7 +278,11 @@ function createWebviewForTab(url) {
   webview.setAttribute("nodeintegration", "false");
   webview.setAttribute("plugins", "false");
   webview.setAttribute("disablewebsecurity", "false");
-  webview.setAttribute("allowpopups", "true"); // ✅ INI WAJIB
+  webview.setAttribute("allowpopups", "true");
+  webview.setAttribute(
+    "webpreferences",
+    "contextIsolation=true, nativeWindowOpen=true"
+  );
   webview.style.width = "100%";
   webview.style.height = "100%";
   webview.classList.add("hidden");
@@ -419,23 +422,6 @@ function attachWebviewListeners(
     }
   });
 
-  // ✅ Tambahkan penanganan new-window
-  webview.addEventListener("new-window", (e) => {
-    e.preventDefault(); // ✅ KRUSIAL — cegah popup
-    const { url, disposition } = e;
-    if (!/^https?:\/\//i.test(url)) {
-      console.warn("Ditolak: bukan HTTP/HTTPS", url);
-      return;
-    }
-    if (
-      disposition === "new-window" ||
-      disposition === "foreground-tab" ||
-      disposition === "background-tab"
-    ) {
-      createBrowserTab(url); // ✅ buka tab baru di aplikasi
-    }
-  });
-
   webview.addEventListener("load-commit", updateNavButtons);
 }
 
@@ -513,7 +499,6 @@ async function refreshActiveIdentities() {
     enabledIdentityIds = new Set(activeIdentities.map((id) => id.identity_id));
   } catch (e) {
     console.warn("Gagal refresh identitas dari proxy:", e);
-    // Opsional: fallback ke activeIdentities lama tanpa services
   }
 }
 
@@ -643,7 +628,6 @@ function setupAuthListeners() {
         const firstId = activeIdentities[0];
         if (!firstId?.idString) throw new Error("Identitas tanpa idString.");
 
-        // ✅ Login semua identitas yang baru saja di-enroll (lebih konsisten)
         const newlyEnrolledIds = successful
           .map((r) => r.identity?.idString)
           .filter(Boolean);
@@ -959,7 +943,7 @@ function showUploadIdentityDialog() {
 }
 window.showUploadIdentityDialog = showUploadIdentityDialog;
 
-// ✅ SINGLE SOURCE OF TRUTH — multi-file support for JSON & JWT
+//  SINGLE SOURCE OF TRUTH — multi-file support for JSON & JWT
 async function triggerFileUpload(type) {
   const input = document.createElement("input");
   input.type = "file";
@@ -1383,7 +1367,6 @@ function handleInitialState(sessionState) {
   switch (sessionState.type) {
     case "no-vault":
       showScreen("no-vault");
-      authErrorMessage.classList.add("hidden");
       break;
 
     case "need-vault-password":
@@ -1408,12 +1391,22 @@ function handleInitialState(sessionState) {
 }
 
 async function init() {
+  // --- [FIX] Aktifkan Listener IPC ---
+  window.electronAPI.onNewTabRequest((url) => {
+    console.log("[INFO] Membuka tab baru dari window.open:", url);
+    // Jika tidak ada tab sama sekali, buat tab default dulu (opsional)
+    if (tabs.length === 0 && serviceTabs.size === 0) {
+      createBrowserTab("https://www.google.com");
+    }
+    // Buat tab baru dengan URL dari window.open
+    createBrowserTab(url);
+  });
+
   try {
     // 1. Apakah ada identitas aktif di proxy? (artinya session masih jalan)
     const proxyState = await window.electronAPI.getActiveIdentitiesFromProxy();
 
     if (proxyState.success && proxyState.identities.length > 0) {
-      // ✅ Ada identitas aktif di proxy → lanjut ke browser
       activeIdentities = proxyState.identities;
       await refreshActiveIdentities(); // isi services lengkap
       renderSidebar();
@@ -1423,8 +1416,6 @@ async function init() {
       }
       return;
     }
-
-    // 2. Jika tidak, cek vault (seperti sebelumnya)
     const vaultState = await window.electronAPI.checkSession();
     handleInitialState(vaultState);
   } catch (err) {

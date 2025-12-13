@@ -5,20 +5,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkVaultExists: () => ipcRenderer.invoke("vault:check-exists"),
   unlockVault: (password) => ipcRenderer.invoke("vault:unlock", password),
   getVaultIdentities: () => ipcRenderer.invoke("vault:get-identities"),
-  loginSelected: (idStrings) => ipcRenderer.invoke("vault:login-selected", idStrings),
-  
+  loginSelected: (idStrings) =>
+    ipcRenderer.invoke("vault:login-selected", idStrings),
+
   // === Identity Management ===
-  handleEnrollment: (payload) => ipcRenderer.invoke("handle-enrollment", payload),
-  handleIdentityUpload: (payload) => ipcRenderer.invoke("handle-identity-upload", payload),
-  deleteIdentity: (identityId) => ipcRenderer.invoke("delete-identity", identityId),
+  handleEnrollment: (payload) =>
+    ipcRenderer.invoke("handle-enrollment", payload),
+  handleIdentityUpload: (payload) =>
+    ipcRenderer.invoke("handle-identity-upload", payload),
+  deleteIdentity: (identityId) =>
+    ipcRenderer.invoke("delete-identity", identityId),
   getZitiIdentityData: () => ipcRenderer.invoke("get-ziti-identity-data"),
-  removeIdentityFromVault: (idString, password) => ipcRenderer.invoke("vault:remove-identity", idString, password),
+  removeIdentityFromVault: (idString, password) =>
+    ipcRenderer.invoke("vault:remove-identity", idString, password),
 
   // === Session Management ===
   checkSession: () => ipcRenderer.invoke("check-session"),
   logout: () => ipcRenderer.invoke("logout"),
-  detectServiceProtocol: (serviceName) => ipcRenderer.invoke("detect-service-protocol", serviceName),
-  getActiveIdentitiesFromProxy: () => ipcRenderer.invoke("proxy:get-active-identities"),
+  detectServiceProtocol: (serviceName) =>
+    ipcRenderer.invoke("detect-service-protocol", serviceName),
+  getActiveIdentitiesFromProxy: () =>
+    ipcRenderer.invoke("proxy:get-active-identities"),
 
   // === VAULT STATE EVENTS (baru & wajib) ===
   onVaultUpdated: (callback) => {
@@ -39,6 +46,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("proxy-log-update", handler);
     return () => ipcRenderer.off("proxy-log-update", handler);
   },
+
+  onNewTabRequest: (callback) => {
+    const handler = (_, url) => callback(url);
+    ipcRenderer.on("app:new-browser-tab", handler);
+    return () => ipcRenderer.off("app:new-browser-tab", handler);
+  },
 });
-
-

@@ -38,9 +38,8 @@ const vaultLock = {
     } else {
       this.locked = false;
     }
-  }
+  },
 };
-
 
 // Konstanta enkripsi
 const ALGORITHM = "aes-256-gcm";
@@ -389,14 +388,17 @@ async function addIdentityToVault(identity, password) {
       (id) => id.idString === identity.idString
     );
     if (existing) {
-      throw new Error(`Identitas dengan nama "${identity.idString}" sudah ada.`);
+      throw new Error(
+        `Identitas dengan nama "${identity.idString}" sudah ada.`
+      );
     }
 
     vault.identities.push(identity);
     await writeVault(vault, password);
-    console.log(`[VAULT] Added identity: "${identity.idString}", total: ${vault.identities.length}`);
+    console.log(
+      `[VAULT] Added identity: "${identity.idString}", total: ${vault.identities.length}`
+    );
     return identity;
-
   } finally {
     vaultLock.release();
   }
@@ -424,19 +426,26 @@ async function removeIdentityFromVault(idString, password) {
   // Pastikan idString adalah string (sesuai penyimpanan di vault)
   const idToRemove = String(idString).trim();
 
-  vault.identities = identities.filter(id => id.idString !== idToRemove);
+  vault.identities = identities.filter((id) => id.idString !== idToRemove);
 
   if (vault.identities.length === initialLength) {
-    throw new Error(`Identitas dengan idString "${idToRemove}" tidak ditemukan di vault.`);
+    throw new Error(
+      `Identitas dengan idString "${idToRemove}" tidak ditemukan di vault.`
+    );
   }
 
   // Simpan kembali vault tanpa identitas yang dihapus
   await writeVault(vault, password);
-  return { removedIdString: idToRemove, remainingCount: vault.identities.length };
+  return {
+    removedIdString: idToRemove,
+    remainingCount: vault.identities.length,
+  };
 }
 
 // --- IPC HANDLERS ---
-ipcMain.handle("handle-enrollment", async (event, { jwtContent, fileName, password }) => {
+ipcMain.handle(
+  "handle-enrollment",
+  async (event, { jwtContent, fileName, password }) => {
     try {
       if (!jwtContent?.includes(".")) throw new Error("JWT tidak valid.");
       if (!password || password.length < 8)
@@ -496,7 +505,9 @@ ipcMain.handle("handle-enrollment", async (event, { jwtContent, fileName, passwo
   }
 );
 
-ipcMain.handle( "handle-identity-upload", async (event, { identityFile, fileName, password }) => {
+ipcMain.handle(
+  "handle-identity-upload",
+  async (event, { identityFile, fileName, password }) => {
     try {
       if (!identityFile) throw new Error("File identitas diperlukan.");
       if (!password || password.length < 8)
@@ -643,10 +654,12 @@ ipcMain.handle("vault:remove-identity", async (event, idString, password) => {
     return { success: true, result };
   } catch (e) {
     console.error("Gagal hapus identitas:", e);
-    return { success: false, message: e.message || "Gagal menghapus identitas." };
+    return {
+      success: false,
+      message: e.message || "Gagal menghapus identitas.",
+    };
   }
 });
-
 
 ipcMain.handle("check-session", async () => {
   return await determineInitialState();
@@ -834,6 +847,7 @@ const createWindow = () => {
       webviewTag: true,
     },
   });
+
   // mainWindow.setAlwaysOnTop(true);
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -842,9 +856,21 @@ const createWindow = () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
-
   // mainWindow.webContents.openDevTools();
 };
+
+app.on("web-contents-created", (event, contents) => {
+  if (contents.getType() === "webview") {    
+    contents.setWindowOpenHandler((details) => {
+      // console.log("[MAIN] Intercepted window.open:", details.url);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("app:new-browser-tab", details.url);
+      }
+      return { action: "deny" };
+    });
+    
+  }
+});
 
 app.whenReady().then(() => {
   setupLogFile();
