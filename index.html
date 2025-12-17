@@ -91,7 +91,7 @@
       <!-- Main Content Area -->
       <div class="flex flex-grow overflow-hidden">
         <!-- SIDEBAR -->
-        <aside id="sidebar" class="sidebar bg-white flex flex-col p-4 ">
+        <aside id="sidebar" class="sidebar bg-white flex flex-col p-4">
           <button
             id="collapse-btn"
             class="left-0 mb-4 bg flex items-center justify-center w-6 h-6 rounded-full transition-transform duration-300 transform"
@@ -196,15 +196,15 @@
             Ziti Browser
           </h2>
           <p class="text-sm text-gray-500 mb-6 text-center">
-            Selamat datang di Ziti Browser! Silakan unggah identitas Anda untuk
-            mengakses jaringan Ziti.
+            Selamat datang di Ziti Browser! Silakan masukkan identitas untuk
+            mengakses Ziti Browser.
           </p>
 
           <div
             id="initial-setup-message"
             class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-4 rounded-lg mb-5 text-sm"
           >
-            <p class="font-medium mb-2">Langkah pertama Anda:</p>
+            <p class="font-medium mb-2">Langkah pertama:</p>
             <ul class="list-disc pl-5 space-y-1">
               <li>
                 Unggah file identitas
@@ -403,7 +403,7 @@
       style="display: none"
     />
 
-    <!-- Password Modal -->
+    <!-- Password Modal (FIRST TIME USE) -->
     <div
       id="password-modal"
       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden"
@@ -413,6 +413,7 @@
           Atur Password Ziti Browser
         </h3>
 
+        <!-- Catatan keamanan -->
         <div
           class="bg-red-50 border border-red-200 text-red-700 px-4 py-4 rounded-lg mb-5 text-sm"
         >
@@ -422,23 +423,25 @@
             ke dalam aplikasi (ziti-vault)
           </p>
           <p class="mb-0">
-            - Password hanya diatur sekali dan tidak dapat diubah nanti.
+            - Password hanya diatur sekali dan tidak dapat diubah.
           </p>
           <p class="font-medium mb-0">- PASTIKAN ANDA MENGINGATNYA!</p>
         </div>
 
-        <div class="relative">
+        <!-- Password field -->
+        <div class="relative mb-2">
           <input
             type="password"
             id="password-input"
-            placeholder="Masukkan password vault"
-            class="w-full px-3 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Masukkan password (minimal 8 karakter)"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            autocomplete="off"
             autofocus
           />
           <button
             type="button"
             id="toggle-password-visibility"
-            class="absolute right-3 top-3 text-gray-500 hover:text-indigo-600 focus:outline-none"
+            class="absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none"
             aria-label="Toggle password visibility"
           >
             <img
@@ -455,7 +458,48 @@
             />
           </button>
         </div>
+        <!-- Error untuk password pertama -->
+        <div
+          id="password-error-1"
+          class="text-red-500 text-sm mb-4"
+        ></div>
 
+        <!-- Confirm password field -->
+        <div class="relative mb-2">
+          <input
+            type="password"
+            id="password-confirm"
+            placeholder="Ulangi password"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            autocomplete="off"
+          />
+          <button
+            type="button"
+            id="toggle-confirm-password-visibility"
+            class="absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none"
+            aria-label="Toggle confirm password visibility"
+          >
+            <img
+              id="eye-icon-confirm"
+              src="/icon/eye.svg"
+              alt="Tampilkan konfirmasi password"
+              class="w-5 h-5"
+            />
+            <img
+              id="eye-off-icon-confirm"
+              src="/icon/eye-off.svg"
+              alt="Sembunyikan konfirmasi password"
+              class="w-5 h-5 hidden"
+            />
+          </button>
+        </div>
+        <!-- Error untuk konfirmasi -->
+        <div
+          id="password-error-2"
+          class="text-red-500 text-sm mb-4"
+        ></div>
+
+        <!-- Tombol aksi -->
         <div class="flex justify-end space-x-2">
           <button
             id="password-cancel"
@@ -465,7 +509,8 @@
           </button>
           <button
             id="password-submit"
-            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled
           >
             Simpan & Lanjutkan
           </button>
