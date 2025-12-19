@@ -87,6 +87,18 @@
           </div>
         </div>
       </div>
+      
+      <!-- Progress Bar (Loading Indicator) -->
+      <div
+        id="loading-progress-bar"
+        class="h-0.5 w-full bg-gray-200 overflow-hidden hidden"
+      >
+        <div
+          id="loading-progress"
+          class="h-full bg-blue-500 transition-all duration-300 ease-out"
+          style="width: 0%"
+        ></div>
+      </div>
 
       <!-- Main Content Area -->
       <div class="flex flex-grow overflow-hidden">
@@ -459,10 +471,7 @@
           </button>
         </div>
         <!-- Error untuk password pertama -->
-        <div
-          id="password-error-1"
-          class="text-red-500 text-sm mb-4"
-        ></div>
+        <div id="password-error-1" class="text-red-500 text-sm mb-4"></div>
 
         <!-- Confirm password field -->
         <div class="relative mb-2">
@@ -494,10 +503,7 @@
           </button>
         </div>
         <!-- Error untuk konfirmasi -->
-        <div
-          id="password-error-2"
-          class="text-red-500 text-sm mb-4"
-        ></div>
+        <div id="password-error-2" class="text-red-500 text-sm mb-4"></div>
 
         <!-- Tombol aksi -->
         <div class="flex justify-end space-x-2">
