@@ -13,7 +13,7 @@ Seluruh komunikasi layanan internal dibungkus dalam *overlay network*, sehingga 
 
 ---
 
-## ⚠️ Prasyarat (Prerequisites)
+## Prasyarat (Prerequisites)
 
 Sebelum menjalankan aplikasi, pastikan lingkungan klien telah dikonfigurasi agar dapat berkomunikasi dengan Ziti Controller.
 
