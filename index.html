@@ -57,10 +57,10 @@
           <div
             class="bg-gray-50 h-7 rounded-full flex items-center w-full border border-gray-300"
           >
-            <input id="url-input" required placeholder="URL atau pencarian" />
+            <input id="url-input" readonly placeholder="Pilih service dari sidebar" />
           </div>
         </form>
-        <button id="go" class="hidden">go</button>
+
 
         <!-- Kontainer Tombol Kanan -->
         <div class="flex items-center space-x-1">
@@ -111,23 +111,7 @@
             <img src="./icon/sidebar.svg" alt="" class="w-5 h-5" />
           </button>
 
-          <div
-            id="sidebar-content"
-            class="flex-grow overflow-y-auto space-y-4 scrollbar-thin"
-          >
-            <div>
-              <div class="text-xs font-semibold text-gray-600 uppercase mb-2">
-                TABS
-              </div>
-              <div id="tabs-container" class="space-y-1"></div>
-              <button
-                id="new-tab-button"
-                class="flex items-center w-full mt-2 px-2 py-2 rounded-md hover:bg-gray-200 transition-colors duration-200 space-x-2"
-              >
-                <img src="./icon/plus.svg" alt="" class="w-5 h-5" />
-                <span class="text-sm">Tab Baru</span>
-              </button>
-            </div>
+          <div id="sidebar-content" class="flex-grow overflow-y-auto space-y-4 scrollbar-thin">
             <div>
               <div class="text-xs font-semibold text-gray-600 uppercase mb-2">
                 SERVICES

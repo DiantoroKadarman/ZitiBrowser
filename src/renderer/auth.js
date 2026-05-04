@@ -1,9 +1,8 @@
-// --- Authentication Flow ---
+// --- Authentication Flow (Strict Whitelist Mode) ---
 
 import { state } from "./state.js";
 import { showScreen } from "./screens.js";
 import { showPasswordPrompt } from "./password-prompt.js";
-import { createBrowserTab } from "./browser-tabs.js";
 import { renderSidebar } from "./service-tabs.js";
 import { displayIdentityData } from "./identity-modal.js";
 import { webviewContainer } from "./webview.js";
@@ -211,9 +210,6 @@ window.handleLoginSelection = async function () {
       renderSidebar();
       displayIdentityData();
       showScreen("browser");
-      if (state.tabs.length === 0) {
-        createBrowserTab("https://www.google.com");
-      }
     } else {
       handleAuthFailure(result.message || "Gagal login.");
     }
@@ -234,23 +230,15 @@ async function handleLogout() {
     showScreen("processing");
     await window.electronAPI.logout();
 
-    const allWebviews = [
-      ...state.tabs.map((t) => t.webview),
-      ...Array.from(state.serviceTabs.values()).map((s) => s.webview),
-    ];
+    const allWebviews = Array.from(state.serviceTabs.values()).map((s) => s.webview);
     allWebviews.filter((wv) => wv?.parentNode).forEach((wv) => wv.remove());
 
     state.activeIdentities = [];
     state.enabledIdentityIds = new Set();
-    state.tabs = [];
     state.serviceTabs.clear();
-    state.currentTabIndex = 0;
     state.activeServiceTabId = null;
 
     webviewContainer.innerHTML = "";
-    // Lazy import to avoid calling renderTabs before tabs are cleared
-    const { renderTabs } = await import("./browser-tabs.js");
-    renderTabs();
 
     const vaultState = await window.electronAPI.checkSession();
     const { handleInitialState } = await import("./screens.js");
@@ -541,8 +529,6 @@ function setupAuthListeners() {
         await refreshActiveIdentities();
         renderSidebar();
         showScreen("browser");
-        if (state.tabs.length === 0)
-          createBrowserTab("https://www.google.com");
       } catch (err) {
         console.error("Enrollment error:", err);
         handleAuthFailure(err.message || "Gagal enroll identitas.");
@@ -611,8 +597,6 @@ function setupAuthListeners() {
         await refreshActiveIdentities();
         renderSidebar();
         showScreen("browser");
-        if (state.tabs.length === 0)
-          createBrowserTab("https://www.google.com");
       } catch (err) {
         console.error("Multi-upload (first-time) error:", err);
         handleAuthFailure(err.message || "Gagal memproses identitas.");

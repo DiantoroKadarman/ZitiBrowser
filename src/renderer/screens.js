@@ -1,4 +1,4 @@
-// --- Screen State Machine ---
+// --- Screen State Machine (Strict Whitelist Mode) ---
 
 import { state } from "./state.js";
 import {
@@ -6,7 +6,6 @@ import {
   setupPasswordVisibilityToggles,
 } from "./password-prompt.js";
 import { initProgressBar } from "./progress-bar.js";
-import { createBrowserTab } from "./browser-tabs.js";
 import { renderSidebar } from "./service-tabs.js";
 import {
   setupAuthListeners,
@@ -17,13 +16,12 @@ import {
 } from "./auth.js";
 import { setupBrowserListeners } from "./browser-tabs.js";
 import { setupLogModal } from "./log-modal.js";
+import { isUrlInActiveServiceDomain } from "./webview.js";
 
-// --- REFERENSI ELEMEN ---
 const authScreen = document.getElementById("auth-screen");
 const authBox = document.getElementById("auth-box");
 const authDiv = document.getElementById("auth-div");
 
-// --- INDICATOR PROSES ---
 const processingIndicator = document.createElement("div");
 processingIndicator.className = "text-center";
 processingIndicator.innerHTML = `<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div><p class="text-lg text-gray-700">Memproses...</p>`;
@@ -43,29 +41,21 @@ function showScreen(screen) {
   switch (screen) {
     case "no-vault":
       authBox.classList.remove("hidden");
-      document
-        .getElementById("initial-setup-message")
-        ?.classList.remove("hidden");
+      document.getElementById("initial-setup-message")?.classList.remove("hidden");
       document.getElementById("empty-vault-message")?.classList.add("hidden");
       break;
     case "empty-vault":
       authBox.classList.remove("hidden");
       document.getElementById("initial-setup-message")?.classList.add("hidden");
-      document
-        .getElementById("empty-vault-message")
-        ?.classList.remove("hidden");
+      document.getElementById("empty-vault-message")?.classList.remove("hidden");
       break;
     case "identity-list":
-      document
-        .getElementById("identity-list-screen")
-        ?.classList.remove("hidden");
+      document.getElementById("identity-list-screen")?.classList.remove("hidden");
       break;
     case "processing":
       processingIndicator.classList.remove("hidden");
       break;
-
     case "need-vault-password":
-      console.log("Menampilkan layar need-vault-password juga");
       showScreen("vault-password");
       setupVaultPasswordScreen(showScreen, (pwd, identities) => {
         state.sessionVaultPassword = pwd;
@@ -73,10 +63,7 @@ function showScreen(screen) {
       });
       break;
     case "vault-password":
-      console.log("Menampilkan layar password vault");
-      document
-        .getElementById("vault-password-screen")
-        ?.classList.remove("hidden");
+      document.getElementById("vault-password-screen")?.classList.remove("hidden");
       break;
     case "browser":
       authScreen.classList.add("hidden");
@@ -87,10 +74,7 @@ function showScreen(screen) {
 
 function handleInitialState(sessionState) {
   switch (sessionState.type) {
-    case "no-vault":
-      showScreen("no-vault");
-      break;
-
+    case "no-vault": showScreen("no-vault"); break;
     case "need-vault-password":
       showScreen("vault-password");
       setupVaultPasswordScreen(showScreen, (pwd, identities) => {
@@ -98,29 +82,28 @@ function handleInitialState(sessionState) {
         handleVaultUnlocked(identities);
       });
       break;
-
-    case "empty-vault":
-      showScreen("empty-vault");
-      break;
-
+    case "empty-vault": showScreen("empty-vault"); break;
     case "show-identity-list":
       showScreen("identity-list");
       state.activeIdentities = sessionState.payload.identities;
       displayIdentityOnVault();
       break;
-
-    default:
-      showScreen("no-vault");
+    default: showScreen("no-vault");
   }
 }
 
 async function init() {
+  // window.open — hanya izinkan URL dalam domain service aktif
   window.electronAPI.onNewTabRequest((url) => {
-    console.log("[INFO] Membuka tab baru dari window.open:", url);
-    if (state.tabs.length === 0 && state.serviceTabs.size === 0) {
-      createBrowserTab("https://www.google.com");
+    if (isUrlInActiveServiceDomain(url)) {
+      console.log("[INFO] window.open diizinkan (domain service):", url);
+      if (state.activeServiceTabId) {
+        const tab = state.serviceTabs.get(state.activeServiceTabId);
+        if (tab?.webview) tab.webview.src = url;
+      }
+    } else {
+      console.warn("[BLOCKED] window.open diblokir:", url);
     }
-    createBrowserTab(url);
   });
 
   initProgressBar();
@@ -129,18 +112,12 @@ async function init() {
   setupLogModal();
 
   try {
-    // 1. Apakah ada identitas aktif di proxy? (artinya session masih jalan)
-    const proxyState =
-      await window.electronAPI.getActiveIdentitiesFromProxy();
-
+    const proxyState = await window.electronAPI.getActiveIdentitiesFromProxy();
     if (proxyState.success && proxyState.identities.length > 0) {
       state.activeIdentities = proxyState.identities;
-      await refreshActiveIdentities(); // isi services lengkap
+      await refreshActiveIdentities();
       renderSidebar();
       showScreen("browser");
-      if (state.tabs.length === 0) {
-        createBrowserTab("https://www.google.com");
-      }
       return;
     }
     const vaultState = await window.electronAPI.checkSession();
@@ -151,20 +128,14 @@ async function init() {
   }
 
   window.electronAPI.onVaultUpdated(handleVaultUpdated);
-  window.electronAPI.onVaultLocked(() => {
-    window.location.reload();
-  });
+  window.electronAPI.onVaultLocked(() => window.location.reload());
 
-  document
-    .getElementById("add-enroll-from-empty")
-    ?.addEventListener("click", () => {
-      document.getElementById("enroll-jwt-file")?.click();
-    });
-  document
-    .getElementById("add-upload-from-empty")
-    ?.addEventListener("click", () => {
-      document.getElementById("identity-file-input")?.click();
-    });
+  document.getElementById("add-enroll-from-empty")?.addEventListener("click", () => {
+    document.getElementById("enroll-jwt-file")?.click();
+  });
+  document.getElementById("add-upload-from-empty")?.addEventListener("click", () => {
+    document.getElementById("identity-file-input")?.click();
+  });
   setupAuthListeners();
 }
 

@@ -1,4 +1,5 @@
-// --- Webview Factory & Listeners ---
+// --- Webview Factory & Listeners (Strict Whitelist Mode) ---
+// Semua webview = service webview. Tidak ada browser tab.
 
 import { state } from "./state.js";
 import {
@@ -27,10 +28,9 @@ function createWebviewForTab(url) {
 }
 
 function showWebview(targetWebview) {
-  const allWebviews = [
-    ...state.tabs.map((t) => t.webview),
-    ...Array.from(state.serviceTabs.values()).map((s) => s.webview),
-  ];
+  const allWebviews = Array.from(state.serviceTabs.values()).map(
+    (s) => s.webview
+  );
   allWebviews
     .filter((wv) => wv && wv !== targetWebview)
     .forEach((wv) => wv.classList.add("hidden"));
@@ -57,16 +57,6 @@ function updateNavButtons() {
         canGoForward = tab.webview.canGoForward();
       } catch (e) {}
     }
-  } else {
-    const tab = state.tabs[state.currentTabIndex];
-    if (tab?.webview) {
-      try {
-        canGoBack = tab.webview.canGoBack();
-      } catch (e) {}
-      try {
-        canGoForward = tab.webview.canGoForward();
-      } catch (e) {}
-    }
   }
 
   backButton.disabled = !canGoBack;
@@ -79,7 +69,7 @@ function getServiceTabId(identityId, serviceName) {
 
 function attachWebviewListeners(
   webview,
-  isService = false,
+  isService = true,
   identityId = "",
   serviceName = ""
 ) {
@@ -87,43 +77,26 @@ function attachWebviewListeners(
 
   const updateUrlField = (url) => {
     if (url.startsWith("data:") || url.startsWith("ziti-")) return;
-    if (isService) {
-      const tabId = getServiceTabId(identityId, serviceName);
-      if (state.activeServiceTabId === tabId) {
-        urlInputField.value = url;
-      }
-    } else {
-      const tab = state.tabs.find((t) => t.webview === webview);
-      if (tab) {
-        tab.url = url;
-        if (
-          state.activeServiceTabId === null &&
-          state.tabs[state.currentTabIndex]?.webview === webview
-        ) {
-          urlInputField.value = url;
-        }
-      }
+    const tabId = getServiceTabId(identityId, serviceName);
+    if (state.activeServiceTabId === tabId) {
+      urlInputField.value = url;
     }
   };
 
   // ✅ PROGRESS BAR: start
   webview.addEventListener("did-start-loading", () => {
     const isActive =
-      (state.tabs[state.currentTabIndex]?.webview === webview &&
-        !state.activeServiceTabId) ||
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
       showProgressBar();
     }
   });
 
-  // ✅ PROGRESS BAR: update (fallback jika event tidak support → skip)
+  // ✅ PROGRESS BAR: update
   if (typeof webview.addEventListener === "function") {
     webview.addEventListener("did-progress-load", (e) => {
       if (e.value && e.value > 0) {
         const isActive =
-          (state.tabs[state.currentTabIndex]?.webview === webview &&
-            !state.activeServiceTabId) ||
           state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
         if (isActive) {
           updateProgress(e.value * 100);
@@ -135,8 +108,6 @@ function attachWebviewListeners(
   // ✅ PROGRESS BAR: finish
   webview.addEventListener("did-finish-load", () => {
     const isActive =
-      (state.tabs[state.currentTabIndex]?.webview === webview &&
-        !state.activeServiceTabId) ||
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
       completeProgress(true);
@@ -148,8 +119,6 @@ function attachWebviewListeners(
     if (e.errorCode === -3) return; // aborted
 
     const isActive =
-      (state.tabs[state.currentTabIndex]?.webview === webview &&
-        !state.activeServiceTabId) ||
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
       completeProgress(false);
@@ -170,16 +139,6 @@ function attachWebviewListeners(
   webview.addEventListener("did-navigate-in-page", (e) =>
     updateUrlField(e.url)
   );
-  webview.addEventListener("page-title-updated", (e) => {
-    if (!isService) {
-      const tab = state.tabs.find((t) => t.webview === webview);
-      if (tab) {
-        tab.title = e.title || "Untitled";
-        // Lazy import to avoid circular dependency
-        import("./browser-tabs.js").then((mod) => mod.renderTabs());
-      }
-    }
-  });
   webview.addEventListener("load-commit", updateNavButtons);
 }
 
@@ -353,6 +312,34 @@ function mapErrorCodeToMessage(code, description, url = "") {
   }
 }
 
+/**
+ * Cek apakah URL berada dalam domain service yang sedang aktif.
+ * Digunakan untuk memfilter window.open requests.
+ */
+function isUrlInActiveServiceDomain(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+
+    // Cek semua service tabs yang aktif
+    for (const [, tab] of state.serviceTabs) {
+      if (tab.serviceName === hostname) {
+        return true;
+      }
+    }
+
+    // Cek semua services dari active identities
+    for (const identity of state.activeIdentities) {
+      if (identity.services?.includes(hostname)) {
+        return true;
+      }
+    }
+  } catch (e) {
+    // URL tidak valid
+  }
+  return false;
+}
+
 export {
   createWebviewForTab,
   showWebview,
@@ -361,5 +348,6 @@ export {
   attachWebviewListeners,
   injectWebviewErrorPage,
   mapErrorCodeToMessage,
+  isUrlInActiveServiceDomain,
   webviewContainer,
 };
