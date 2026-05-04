@@ -14,12 +14,15 @@ function setupBrowserListeners() {
   // --- Identity Modal & Sidebar ---
   const identityButton = document.getElementById("identity-button");
   const identityModal = document.getElementById("identity-modal");
-  const closeModalButton = document.getElementById("close-modal-button");
   const sidebar = document.getElementById("sidebar");
   const sidebarContent = document.getElementById("sidebar-content");
   const collapseBtn = document.getElementById("collapse-btn");
 
-  // Home button — disediakan tapi belum ada proses di belakangnya
+  // --- Settings & Help (new sidebar footer buttons) ---
+  const settingsButton = document.getElementById("settings-button");
+  const helpButton = document.getElementById("help-button");
+
+  // Home button — placeholder
   if (searchButton) {
     searchButton.addEventListener("click", () => {
       // Placeholder — belum ada aksi. Akan ditentukan nanti.
@@ -46,30 +49,43 @@ function setupBrowserListeners() {
     if (webview) webview.reload();
   });
 
-  // --- MODAL & SIDEBAR ---
+  // --- IDENTITY BUTTON (toolbar) ---
   if (identityButton) {
     identityButton.addEventListener("click", () => {
       import("./identity-modal.js").then((mod) => mod.displayIdentityData());
     });
   }
-  if (closeModalButton)
-    closeModalButton.addEventListener("click", () => {
-      identityModal.classList.add("hidden");
-      identityModal.classList.remove("flex");
+
+  // --- SETTINGS BUTTON (sidebar footer) → Identity Modal ---
+  if (settingsButton) {
+    settingsButton.addEventListener("click", () => {
+      import("./identity-modal.js").then((mod) => mod.displayIdentityData());
     });
-  if (identityModal)
+  }
+
+  // --- HELP BUTTON (sidebar footer) → Proxy Log Modal ---
+  if (helpButton) {
+    helpButton.addEventListener("click", () => {
+      import("./log-modal.js").then((mod) => mod.showProxyLog());
+    });
+  }
+
+  // --- MODAL CLOSE (click overlay) ---
+  if (identityModal) {
     identityModal.addEventListener("click", (e) => {
       if (e.target === identityModal) {
         identityModal.classList.add("hidden");
         identityModal.classList.remove("flex");
       }
     });
-  if (collapseBtn)
+  }
+
+  // --- SIDEBAR COLLAPSE ---
+  if (collapseBtn) {
     collapseBtn.addEventListener("click", () => {
       sidebar.classList.toggle("collapsed");
-      collapseBtn.classList.toggle("rotate-180");
-      sidebarContent.classList.toggle("hidden");
     });
+  }
 }
 
 export { setupBrowserListeners };

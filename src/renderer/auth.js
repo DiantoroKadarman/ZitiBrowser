@@ -76,23 +76,23 @@ function displayIdentityOnVault() {
 
   let html = "";
   if (state.activeIdentities.length === 0) {
-    html = "<p class='text-gray-500'>Tidak ada identitas dalam vault.</p>";
+    html = "<p class='text-sm text-gray-400 py-4 text-center'>Tidak ada identitas dalam vault.</p>";
   } else {
     html = `
     <div class="space-y-3">
       <div class="flex justify-between items-center">
-        <h3 class="text-lg font-semibold"></h3>
+        <h3 class="text-sm font-semibold text-gray-500"></h3>
 
-        <div class="flex items-center space-x-1">
-          <span class="text-sm text-black-600">Pilih Semua</span>
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-gray-500">Pilih Semua</span>
           <button 
             type="button"
             onclick="toggleSelectAll()"
-            class="w-5 h-5 flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+            class="w-5 h-5 flex items-center justify-center focus:outline-none rounded"
           >
             ${
               state.selectedIdentities.size === 0
-                ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2"/></svg>`
+                ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" stroke-width="2"/></svg>`
                 : state.selectedIdentities.size === state.activeIdentities.length
                   ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>`
                   : `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><line x1="5" y1="12" x2="19" y2="12" stroke-width="2" stroke-linecap="round"/></svg>`
@@ -106,19 +106,16 @@ function displayIdentityOnVault() {
           const isSelected = state.selectedIdentities.has(id.idString);
           const checkboxId = `chk-${id.idString.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
           return `
-          <div class="p-4 border rounded-lg hover:bg-gray-50 cursor-pointer flex items-start gap-3 transition-colors ${
-            isSelected ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
-          }">
+          <div class="identity-card ${isSelected ? "selected" : ""}">
             <input 
               type="checkbox" 
               id="${checkboxId}"
               ${isSelected ? "checked" : ""}
               onchange="toggleIdentitySelection('${id.idString.replace(/'/g, "\\'")}', this.checked)"
-              class="mt-1 h-5 w-5 text-indigo-600 rounded focus:ring-indigo-500"
             />
-            <div class="flex-1 min-w-0" onclick="toggleCheckbox('${checkboxId}')">
-              <p class="font-medium truncate">${id.name || "Unnamed Identity"}</p>
-              <p class="text-sm text-gray-500 truncate">ID: ${id.idString}</p>
+            <div class="flex-1 min-w-0 cursor-pointer" onclick="toggleCheckbox('${checkboxId}')">
+              <p class="font-medium text-sm text-gray-800 truncate">${id.name || "Unnamed Identity"}</p>
+              <p class="text-xs text-gray-400 truncate mt-0.5">ID: ${id.idString}</p>
               ${
                 id.enrolledFrom
                   ? `<p class="text-xs text-gray-400 mt-1">Source: ${id.enrolledFrom}</p>`
@@ -257,22 +254,25 @@ function showUploadIdentityDialog() {
   if (!modal) {
     modal = document.createElement("div");
     modal.id = "upload-identity-dialog";
-    modal.className =
-      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4";
+    modal.className = "modal-overlay";
     modal.innerHTML = `
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4">Tambah Identitas</h3>
+      <div class="modal-card max-w-sm p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Tambah Identitas</h3>
         <div class="space-y-3">
-          <button id="btn-upload-json" class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-3">
-            <img src="./icon/upload.svg" alt="" class="w-5 h-5" />
+          <button id="btn-upload-json" class="auth-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
             Upload dari File JSON
           </button>
-          <button id="btn-upload-jwt" class="w-full py-3 px-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:bg-indigo-800 font-medium shadow-md hover:shadow-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-50 flex items-center justify-center gap-3">
-            <img src="./icon/upload.svg" alt="" class="w-5 h-5" />
+          <button id="btn-upload-jwt" class="auth-btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
             Upload dari File JWT
           </button>
         </div>
-        <button id="btn-cancel-upload" class="w-full mt-4 py-2 text-gray-600 hover:text-gray-800">
+        <button id="btn-cancel-upload" class="w-full mt-4 py-2 text-sm text-gray-500 hover:text-gray-700 cursor-pointer">
           Batal
         </button>
       </div>
@@ -370,7 +370,7 @@ async function triggerFileUpload(type) {
       // ✅ UI feedback
       const toast = document.createElement("div");
       toast.className =
-        "fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg z-50 text-white";
+        "fixed bottom-4 right-4 px-4 py-2 rounded-md shadow-lg z-[200] text-white";
       if (successful.length === 1) {
         toast.classList.add("bg-green-600");
         toast.textContent = `✅ ${successful[0].message}`;
@@ -447,7 +447,7 @@ window.RemoveIdentityFromVault = async function () {
     // Tampilkan notifikasi sukses
     const toast = document.createElement("div");
     toast.className =
-      "fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md shadow-lg z-50";
+      "fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-md shadow-lg z-[200]";
     toast.textContent =
       idsToDelete.length === 1
         ? `✅ Identitas "${idsToDelete[0]}" berhasil dihapus.`

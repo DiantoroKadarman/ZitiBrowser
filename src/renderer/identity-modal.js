@@ -13,25 +13,28 @@ function displayIdentityData() {
 
   let html = "";
   if (state.activeIdentities.length === 0) {
-    html += "<p class='text-gray-500'>Tidak ada identitas aktif.</p>";
+    html += "<p class='text-sm text-gray-400 py-4 text-center'>Tidak ada identitas aktif.</p>";
   } else {
     state.activeIdentities.forEach((id) => {
       const isChecked = state.enabledIdentityIds.has(id.identity_id);
       html += `
-        <div class="mb-3 p-3 ${!isChecked ? "bg-gray-100 opacity-75" : "bg-white"} flex justify-between items-start rounded-xl">
-          <div class="flex-1">
-            <p class="font-medium text-gray-800">${id.identity_name || "N/A"}</p>
-            <p class="text-xs text-gray-500">ID: ${id.identity_id || "N/A"}</p>
+        <div class="mb-3 p-3 rounded-xl border transition-colors ${!isChecked ? "bg-gray-50 opacity-75 border-gray-100" : "bg-white border-gray-200"} flex justify-between items-start">
+          <div class="flex-1 min-w-0">
+            <p class="font-medium text-sm text-gray-800">${id.identity_name || "N/A"}</p>
+            <p class="text-xs text-gray-400 mt-0.5">ID: ${id.identity_id || "N/A"}</p>
           </div>
-          <div class="flex items-center space-x-2 ml-3">
-            <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" class="sr-only peer" ${isChecked ? "checked" : ""}
+          <div class="flex items-center gap-3 ml-3">
+            <label class="toggle-switch">
+              <input type="checkbox" ${isChecked ? "checked" : ""}
                 onchange="toggleIdentityFromModal('${id.identity_id}')"/>
-              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              <span class="toggle-slider"></span>
             </label>
-            <button type="button" class="text-red-500 hover:text-red-700" title="Hapus identitas ini"
+            <button type="button" class="text-gray-400 hover:text-red-500 transition-colors" title="Hapus identitas ini"
               onclick="deleteIdentityFromModal('${id.identity_id}')">
-              <img src="./icon/trash-red.svg" alt="Hapus" class="w-6 h-6"/>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
             </button>
           </div>
         </div>

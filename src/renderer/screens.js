@@ -23,8 +23,8 @@ const authBox = document.getElementById("auth-box");
 const authDiv = document.getElementById("auth-div");
 
 const processingIndicator = document.createElement("div");
-processingIndicator.className = "text-center";
-processingIndicator.innerHTML = `<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div><p class="text-lg text-gray-700">Memproses...</p>`;
+processingIndicator.className = "processing-spinner";
+processingIndicator.innerHTML = `<div class="spinner-ring"></div><p class="spinner-text">Memproses...</p>`;
 processingIndicator.classList.add("hidden");
 authDiv.appendChild(processingIndicator);
 

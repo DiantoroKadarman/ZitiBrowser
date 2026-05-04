@@ -155,11 +155,12 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Error - Ziti Browser</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     body {
-      background-color: #ffffff;
-      color: #202124;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9fafb;
+      color: #111827;
+      font-family: 'Inter', -apple-system, sans-serif;
       margin: 0;
       padding: 0;
       display: flex;
@@ -169,115 +170,69 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
       line-height: 1.6;
     }
     .container {
-      max-width: 600px;
+      max-width: 480px;
       padding: 2rem;
       text-align: center;
     }
-    .warning-icon {
-      width: 64px;
-      height: 64px;
+    .error-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background-color: #fef2f2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin: 0 auto 1.5rem;
     }
+    .error-icon svg {
+      width: 28px;
+      height: 28px;
+      color: #ef4444;
+    }
     h1 {
-      font-size: 1.5rem;
+      font-size: 1.25rem;
       font-weight: 600;
-      margin-bottom: 0.75rem;
-      color: #1e293b;
+      margin-bottom: 0.5rem;
+      color: #111827;
     }
     p {
       font-size: 0.875rem;
-      color: #64748b;
-      margin: 0.5rem 0 1rem;
+      color: #6b7280;
+      margin: 0.25rem 0;
     }
     .url-display {
-      font-family: ui-monospace, SFMono-Regular, monospace;
-      background: #f1f5f9;
+      font-family: ui-monospace, 'Cascadia Code', monospace;
+      background: #f3f4f6;
       padding: 0.25rem 0.75rem;
-      border-radius: 0.5rem;
-      color: #334155;
+      border-radius: 8px;
+      color: #374151;
       font-size: 0.75rem;
       display: inline-block;
       max-width: 100%;
       word-break: break-all;
-      margin: 0.5rem 0;
+      margin: 0.75rem 0;
     }
     .error-code {
-      font-size: 0.75rem;
-      color: #94a3b8;
+      font-size: 0.7rem;
+      color: #9ca3af;
       margin-top: 1rem;
-      font-family: monospace;
-    }
-    .info-box {
-      background-color: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 1rem;
-      margin: 1.5rem 0;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.875rem;
-      color: #475569;
-    }
-    .info-icon {
-      font-size: 1.2rem;
-      color: #64748b;
-    }
-    .btn-group {
-      display: flex;
-      justify-content: center;
-      gap: 1rem;
-      margin-top: 1.5rem;
-    }
-    .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 20px;
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      border: none;
-      outline: none;
-    }
-    .btn-advanced {
-      background-color: transparent;
-      color: #2563eb;
-      border: 1px solid #2563eb;
-    }
-    .btn-advanced:hover {
-      background-color: rgba(37, 99, 235, 0.05);
-    }
-    .btn-back {
-      background-color: #2563eb;
-      color: white;
-    }
-    .btn-back:hover {
-      background-color: #1d4ed8;
-    }
-    a {
-      color: #2563eb;
-      text-decoration: underline;
-    }
-    a:hover {
-      color: #1d4ed8;
+      font-family: ui-monospace, monospace;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <svg class="warning-icon" viewBox="0 0 24 24" fill="#ef4444">
-      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-    </svg>
-
-    <!-- Pesan Error Dinamis -->
+    <div class="error-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+    </div>
     <h1>${safeMessage || "Gagal Memuat Halaman"}</h1>
-
-    <!-- Tampilkan URL jika tersedia -->
     ${url ? `<p><span class="url-display">${safeUrl}</span></p>` : ""}
-
-    <!-- Kode Error -->
     <p class="error-code">${errorCode || "Unknown Error"}</p>
-
+  </div>
 </body>
 </html>`;
 

@@ -30,52 +30,50 @@ function renderSidebar() {
     state.enabledIdentityIds.has(id.identity_id)
   );
   if (enabledIdentities.length === 0 && DEV_WHITELIST.length === 0) {
-    serviceTabsContainer.innerHTML = `<p style='color: #666; padding: 10px;'>Tidak ada identitas yang diaktifkan.</p>`;
+    serviceTabsContainer.innerHTML = `<p class="text-sm text-gray-400 px-2 py-3">Tidak ada identitas yang diaktifkan.</p>`;
     return;
   }
 
   let html = "";
   enabledIdentities.forEach((identity) => {
+    // Identity label
+    html += `<div class="service-identity-label">${identity.identity_name}</div>`;
+
     const servicesHtml =
       identity.services
         ?.map((service) => {
           const tabId = getServiceTabId(identity.identity_id, service);
           const isActive = tabId === state.activeServiceTabId;
           return `
-            <button type="button" class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-blue-200 font-semibold" : ""}"
+            <button type="button" class="service-item ${isActive ? "active" : ""}"
               onclick="openServiceTab('${identity.identity_id}', '${service.replace(/'/g, "\\'")}')"
               title="Akses: ${service}">
-              <span class='text-sm'>${service}</span>
+              <span class="status-dot"></span>
+              <span>${service}</span>
             </button>
           `;
         })
         .join("") ||
-      '<p class="text-gray-500 px-2">Identity tidak mempunyai service</p>';
+      '<p class="text-sm text-gray-400 px-4 py-2">Tidak ada service</p>';
 
-    html += `
-      <div class="mb-4">
-        <div class="flex items-center justify-between mb-2">
-          <h4 class="font-semibold text-gray-800">${identity.identity_name}</h4>
-        </div>
-        <div class="ml-2">${servicesHtml}</div>
-      </div>
-    `;
+    html += `<div class="px-1">${servicesHtml}</div>`;
   });
 
   // === DEV WHITELIST RENDERING ===
   if (DEV_WHITELIST.length > 0) {
     html += `
-      <div class="mb-4 mt-4 pt-3 border-t border-gray-200">
-        <div class="text-xs font-semibold text-gray-400 uppercase mb-2">Dev Shortcuts</div>
-        <div class="ml-2">
+      <div class="mt-3 pt-3 border-t border-gray-200">
+        <div class="sidebar-section-label" style="padding-left:4px">Dev Shortcuts</div>
+        <div class="px-1">
           ${DEV_WHITELIST.map((item, i) => {
             const tabId = `dev::${i}`;
             const isActive = tabId === state.activeServiceTabId;
             return `
-              <button type="button" class="flex items-center w-full p-2 rounded-md transition-colors duration-200 space-x-2 tab hover:bg-gray-300 ${isActive ? "bg-yellow-100 font-semibold" : ""}"
+              <button type="button" class="service-item ${isActive ? "active" : ""}"
                 onclick="openDevTab(${i})"
                 title="${item.url}">
-                <span class='text-sm'>⚡ ${item.label}</span>
+                <span class="status-dot" style="background-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.2)"></span>
+                <span>⚡ ${item.label}</span>
               </button>
             `;
           }).join("")}
@@ -86,6 +84,12 @@ function renderSidebar() {
   // === END DEV WHITELIST RENDERING ===
 
   serviceTabsContainer.innerHTML = html;
+
+  // Show/hide empty state based on active service tab
+  const emptyState = document.getElementById("empty-state");
+  if (emptyState) {
+    emptyState.style.display = state.activeServiceTabId ? "none" : "flex";
+  }
 }
 
 // === DEV WHITELIST — Tab handler ===
@@ -182,6 +186,11 @@ function switchToServiceTab(tabId) {
   showWebview(serviceTab.webview);
   urlInputField.value = serviceTab.serviceName;
   state.activeServiceTabId = tabId;
+
+  // Hide empty state
+  const emptyState = document.getElementById("empty-state");
+  if (emptyState) emptyState.style.display = "none";
+
   renderSidebar();
   updateNavButtons();
 }
