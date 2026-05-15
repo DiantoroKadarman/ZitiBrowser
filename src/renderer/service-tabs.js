@@ -5,6 +5,7 @@ import { state } from "./state.js";
 import {
   attachWebviewListeners,
   showWebview,
+  showLoadingOverlay,
   updateNavButtons,
   getServiceTabId,
   webviewContainer,
@@ -46,6 +47,7 @@ function renderSidebar() {
           const isActive = tabId === state.activeServiceTabId;
           return `
             <button type="button" class="service-item ${isActive ? "active" : ""}"
+              data-tab-id="${tabId}"
               onclick="openServiceTab('${identity.identity_id}', '${service.replace(/'/g, "\\'")}')"
               title="Akses: ${service}">
               <span class="status-dot"></span>
@@ -70,6 +72,7 @@ function renderSidebar() {
             const isActive = tabId === state.activeServiceTabId;
             return `
               <button type="button" class="service-item ${isActive ? "active" : ""}"
+                data-tab-id="${tabId}"
                 onclick="openDevTab(${i})"
                 title="${item.url}">
                 <span class="status-dot" style="background-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.2)"></span>
@@ -135,6 +138,9 @@ window.toggleIdentity = function (identityId) {
   renderSidebar();
 };
 
+// --- Protocol Cache (in-memory, per session — auto-clear saat logout/reload) ---
+const protocolCache = new Map(); // serviceName → "https" | "http"
+
 window.openServiceTab = async function (identityId, serviceName) {
   const tabId = getServiceTabId(identityId, serviceName);
   if (state.serviceTabs.has(tabId)) {
@@ -142,15 +148,24 @@ window.openServiceTab = async function (identityId, serviceName) {
     return;
   }
 
-  // 🔍 Deteksi protokol via main process (lebih andal)
+  // 1. Tampilkan loading skeleton SEGERA (user mendapat feedback instan)
+  showLoadingOverlay(serviceName);
+
+  // 2. Detect protocol (dari cache jika ada, atau via IPC)
   let protocol;
-  try {
-    protocol = await window.electronAPI.detectServiceProtocol(serviceName);
-  } catch (err) {
-    console.warn(`Gagal deteksi protokol untuk ${serviceName}:`, err);
-    protocol = "https"; // fallback aman
+  if (protocolCache.has(serviceName)) {
+    protocol = protocolCache.get(serviceName);
+  } else {
+    try {
+      protocol = await window.electronAPI.detectServiceProtocol(serviceName);
+    } catch (err) {
+      console.warn(`Gagal deteksi protokol untuk ${serviceName}:`, err);
+      protocol = "https"; // fallback aman
+    }
+    protocolCache.set(serviceName, protocol);
   }
 
+  // 3. Buat webview dan load
   const fullUrl = `${protocol}://${serviceName}`;
   const webview = document.createElement("webview");
   webview.setAttribute("nodeintegration", "false");
@@ -183,6 +198,20 @@ function switchToServiceTab(tabId) {
   const serviceTab = state.serviceTabs.get(tabId);
   if (!serviceTab) return;
 
+  // Targeted update: toggle active class tanpa rebuild innerHTML
+  const serviceTabsContainer = document.getElementById("service-tabs-container");
+  if (serviceTabsContainer) {
+    serviceTabsContainer.querySelectorAll('.service-item.active')
+      .forEach(el => el.classList.remove('active'));
+    const activeBtn = serviceTabsContainer.querySelector(`[data-tab-id="${tabId}"]`);
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+    } else {
+      // Fallback: jika button belum ada di DOM (tab baru), rebuild sidebar
+      renderSidebar();
+    }
+  }
+
   showWebview(serviceTab.webview);
   urlInputField.value = serviceTab.serviceName;
   state.activeServiceTabId = tabId;
@@ -191,7 +220,6 @@ function switchToServiceTab(tabId) {
   const emptyState = document.getElementById("empty-state");
   if (emptyState) emptyState.style.display = "none";
 
-  renderSidebar();
   updateNavButtons();
 }
 

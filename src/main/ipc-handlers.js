@@ -328,7 +328,7 @@ function registerAllHandlers(mainWindow) {
     }
 
     const session = mainWindow.webContents.session;
-    const timeout = 5000;
+    const timeout = 2000; // 2s cukup untuk internal Ziti network
 
     // Helper: coba satu protokol
     const tryProtocol = (protocol) => {
@@ -365,15 +365,17 @@ function registerAllHandlers(mainWindow) {
       });
     };
 
-    // 🔍 Coba HTTPS dulu
-    const httpsWorks = await tryProtocol("https");
-    if (httpsWorks) return "https";
+    // 🚀 Probe HTTPS dan HTTP secara PARALLEL (bukan sequential)
+    const [httpsWorks, httpWorks] = await Promise.all([
+      tryProtocol("https"),
+      tryProtocol("http"),
+    ]);
 
-    // 🔁 Fallback ke HTTP
-    const httpWorks = await tryProtocol("http");
+    // Prioritaskan HTTPS jika keduanya berhasil
+    if (httpsWorks) return "https";
     if (httpWorks) return "http";
 
-    // 🛡️ Fallback akhir: HTTPS (karena kebanyakan internal service pakai HTTPS + self-signed)
+    // 🛡️ Fallback akhir: HTTPS
     return "https";
   });
 

@@ -10,6 +10,46 @@ import {
 
 const webviewContainer = document.getElementById("webview-container");
 
+// --- Loading Skeleton Overlay ---
+function showLoadingOverlay(serviceName) {
+  hideLoadingOverlay(); // Hapus overlay sebelumnya jika ada
+
+  const overlay = document.createElement("div");
+  overlay.id = "webview-loading-overlay";
+  overlay.className = "webview-loading-overlay";
+  overlay.innerHTML = `
+    <div class="skeleton-container">
+      <div class="skeleton-header">
+        <div class="skeleton-bar skeleton-title"></div>
+        <div class="skeleton-bar skeleton-subtitle"></div>
+      </div>
+      <div class="skeleton-content">
+        <div class="skeleton-bar skeleton-line-full"></div>
+        <div class="skeleton-bar skeleton-line-wide"></div>
+        <div class="skeleton-bar skeleton-line-medium"></div>
+        <div class="skeleton-bar skeleton-line-full"></div>
+        <div class="skeleton-bar skeleton-line-narrow"></div>
+      </div>
+      <div class="skeleton-footer">
+        <span class="skeleton-loading-text">Memuat ${serviceName}…</span>
+      </div>
+    </div>
+  `;
+
+  webviewContainer.style.position = "relative";
+  webviewContainer.appendChild(overlay);
+}
+
+function hideLoadingOverlay() {
+  const overlay = document.getElementById("webview-loading-overlay");
+  if (overlay) {
+    overlay.classList.add("fade-out");
+    overlay.addEventListener("animationend", () => overlay.remove(), { once: true });
+    // Fallback jika animationend tidak fire
+    setTimeout(() => overlay.remove(), 400);
+  }
+}
+
 function createWebviewForTab(url) {
   const webview = document.createElement("webview");
   webview.setAttribute("nodeintegration", "false");
@@ -105,8 +145,10 @@ function attachWebviewListeners(
     });
   }
 
-  // ✅ PROGRESS BAR: finish
+  // ✅ PROGRESS BAR: finish + hide loading overlay
   webview.addEventListener("did-finish-load", () => {
+      hideLoadingOverlay();
+    webview.__hasInjectedError = false; // Reset error flag
     const isActive =
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
@@ -114,10 +156,11 @@ function attachWebviewListeners(
     }
   });
 
-  // ✅ PROGRESS BAR: error
+  // ✅ PROGRESS BAR: error + hide loading overlay
   webview.addEventListener("did-fail-load", (e) => {
     if (e.errorCode === -3) return; // aborted
 
+    hideLoadingOverlay();
     const isActive =
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
@@ -298,6 +341,8 @@ function isUrlInActiveServiceDomain(url) {
 export {
   createWebviewForTab,
   showWebview,
+  showLoadingOverlay,
+  hideLoadingOverlay,
   updateNavButtons,
   getServiceTabId,
   attachWebviewListeners,
