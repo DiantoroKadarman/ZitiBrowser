@@ -18,10 +18,10 @@ function displayIdentityData() {
     state.activeIdentities.forEach((id) => {
       const isChecked = state.enabledIdentityIds.has(id.identity_id);
       html += `
-        <div class="mb-3 p-3 rounded-xl border transition-colors ${!isChecked ? "bg-gray-50 opacity-75 border-gray-100" : "bg-white border-gray-200"} flex justify-between items-start">
+        <div class="identity-modal-card mb-3 p-3 rounded-xl border transition-colors ${!isChecked ? "identity-modal-card--disabled" : ""} flex justify-between items-start">
           <div class="flex-1 min-w-0">
-            <p class="font-medium text-sm text-gray-800">${id.identity_name || "N/A"}</p>
-            <p class="text-xs text-gray-400 mt-0.5">ID: ${id.identity_id || "N/A"}</p>
+            <p class="font-medium text-sm identity-modal-name">${id.identity_name || "N/A"}</p>
+            <p class="text-xs identity-modal-id mt-0.5">ID: ${id.identity_id || "N/A"}</p>
           </div>
           <div class="flex items-center gap-3 ml-3">
             <label class="toggle-switch">
@@ -29,7 +29,7 @@ function displayIdentityData() {
                 onchange="toggleIdentityFromModal('${id.identity_id}')"/>
               <span class="toggle-slider"></span>
             </label>
-            <button type="button" class="text-gray-400 hover:text-red-500 transition-colors" title="Hapus identitas ini"
+            <button type="button" class="identity-modal-delete-btn transition-colors" title="Hapus identitas ini"
               onclick="deleteIdentityFromModal('${id.identity_id}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
                 <polyline points="3 6 5 6 21 6"/>

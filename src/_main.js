@@ -689,7 +689,9 @@ ipcMain.handle("logout", async () => {
       await mainWindow.webContents.session.setProxy({
         proxyRules: "direct://",
       });
-      await mainWindow.webContents.session.clearStorageData();
+      await mainWindow.webContents.session.clearStorageData({
+        storages: ['cookies', 'cachestorage', 'serviceworkers', 'shadercache'],
+      });
     } catch (error) {
       console.error("Gagal reset proxy/session:", error);
     }

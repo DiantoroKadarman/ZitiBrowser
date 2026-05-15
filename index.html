@@ -9,6 +9,13 @@
       body { opacity: 0; transition: opacity 0.15s ease; }
       body.css-ready { opacity: 1; }
     </style>
+    <script>
+      /* Apply saved theme BEFORE first paint to prevent FOUC */
+      (function() {
+        var t = localStorage.getItem('ziti-theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      })();
+    </script>
   </head>
 
   <body>
@@ -62,6 +69,25 @@
 
         <!-- Right Actions -->
         <div class="toolbar-actions">
+          <!-- Theme Toggle -->
+          <button id="theme-toggle-btn" class="theme-btn" title="Toggle Theme">
+            <!-- Sun icon (visible in dark mode) -->
+            <svg id="theme-icon-sun" class="hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="5"/>
+              <line x1="12" y1="1" x2="12" y2="3"/>
+              <line x1="12" y1="21" x2="12" y2="23"/>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+              <line x1="1" y1="12" x2="3" y2="12"/>
+              <line x1="21" y1="12" x2="23" y2="12"/>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+            </svg>
+            <!-- Moon icon (visible in light mode) -->
+            <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
           <!-- Log Button -->
           <button id="log-button" class="nav-btn" title="Proxy Log">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

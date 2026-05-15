@@ -17,6 +17,7 @@ import {
 import { setupBrowserListeners } from "./browser-tabs.js";
 import { setupLogModal } from "./log-modal.js";
 import { isUrlInActiveServiceDomain } from "./webview.js";
+import { setupThemeToggle } from "./theme-toggle.js";
 
 const authScreen = document.getElementById("auth-screen");
 const authBox = document.getElementById("auth-box");
@@ -110,6 +111,7 @@ async function init() {
   setupPasswordVisibilityToggles();
   setupBrowserListeners();
   setupLogModal();
+  setupThemeToggle();
 
   try {
     const proxyState = await window.electronAPI.getActiveIdentitiesFromProxy();
