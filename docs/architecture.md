@@ -37,9 +37,9 @@ Berisi logika *frontend*.
 *   **`screens.js`**: Pengatur "Layar". Menyembunyikan dan menampilkan kotak auth, daftar identitas, atau area browser utama sesuai instruksi.
 *   **`auth.js`**: Paling sibuk di awal. Mengurus form upload JSON/JWT, logika memilih identitas untuk di-login, dan penghapusan identitas.
 *   **`password-prompt.js`**: Menampilkan pop-up peringatan jika pengguna harus memasukkan *password* baru atau membuka *password* vault lama.
-*   **`browser-tabs.js`**: Mengurus logika tab browser standar (seperti tab di Google Chrome).
-*   **`service-tabs.js`**: Mengurus logika daftar Ziti Service di *sidebar* kiri, dan membuatkan tab khusus untuk layanan Ziti.
-*   **`webview.js`**: `webview` adalah semacam "browser di dalam browser" (iframe canggih) untuk menampilkan website dari Ziti. File ini mendengarkan kapan loading selesai, error, dll.
+*   **`browser-tabs.js`**: Mengurus logika tombol navigasi browser standar (seperti *back*, *forward*, dan *reload*). Karena aplikasi ini menggunakan **Strict Whitelist Mode**, fitur mengetik alamat web bebas di *address bar* telah ditiadakan.
+*   **`service-tabs.js`**: Mengurus logika daftar layanan Ziti dan `DEV_WHITELIST` di *sidebar* kiri, serta bertugas membuatkan sesi tampilan khusus saat layanan di-klik.
+*   **`webview.js`**: `webview` adalah area "browser dalam browser" (iframe canggih) yang digunakan untuk memuat *website* Ziti. File ini membatasi URL yang dapat dimuat, menangani *error*, dan mendengarkan ketika proses *loading* halaman selesai.
 *   **`progress-bar.js`**: Mengurus animasi garis loading di atas layar saat webview sedang memuat halaman.
 *   **`ssl-modal.js`**: Jika webview mendeteksi *Error Certificate*, file ini akan memunculkan pop-up merah bertuliskan "Sertifikat Tidak Aman".
 *   **`identity-modal.js`**: Menampilkan daftar identitas aktif beserta tombol hapusnya (muncul jika tombol orang di pojok kanan atas di-klik saat mode browser).
@@ -90,5 +90,5 @@ Preload menangkapnya dan meneruskannya ke Renderer untuk memunculkan modal.
    - *Kasus A:* File tidak ada. UI menampilkan form daftar/upload (`screens.js` -> `auth.js`).
    - *Kasus B:* File ada. UI memunculkan form pengisian password (`password-prompt.js`).
 3. **Pilih Identitas:** Setelah password benar, UI menampilkan daftar nama. User menceklis dan klik Login. `auth.js` mengirim daftar itu ke proxy melalui API.
-4. **Mode Browser:** Tampilan berubah menjadi browser. Sidebar muncul dari `service-tabs.js`. User bisa mengetik di address bar (`browser-tabs.js`) atau klik layanan di sidebar (`service-tabs.js`). Keduanya akan memuat website ke dalam `<webview>`.
+4. **Mode Layanan (Strict Whitelist):** Tampilan berubah menjadi UI web. Sidebar dari `service-tabs.js` muncul, berisi layanan-layanan dari identitas Ziti Anda (serta *DEV_WHITELIST*). Pengguna **hanya dapat mengakses** URL dengan mengklik daftar di *sidebar* tersebut. *Address bar* hanya berfungsi untuk menampilkan URL yang sedang aktif (*read-only*), dan aksi seperti klik tautan tab baru (*window.open*) akan diblokir secara otomatis jika mengarah ke domain luar layanan (`screens.js`).
 5. **Selesai (Logout):** Saat user klik Logout, Preload membersihkan data sesi, menghapus cache webview, proxy api di-reset, dan layar kembali ke halaman pengisian password.

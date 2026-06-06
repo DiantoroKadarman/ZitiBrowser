@@ -52,4 +52,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app:new-browser-tab", handler);
     return () => ipcRenderer.off("app:new-browser-tab", handler);
   },
+
+  // === Keyboard Shortcut: Ctrl+R / F5 → reload active webview only ===
+  onReloadActiveWebview: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("reload-active-webview", handler);
+    return () => ipcRenderer.off("reload-active-webview", handler);
+  },
 });

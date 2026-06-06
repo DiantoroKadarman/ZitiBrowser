@@ -63,6 +63,8 @@ function createWebviewForTab(url) {
   webview.style.width = "100%";
   webview.style.height = "100%";
   webview.classList.add("hidden");
+  // Simpan URL asli agar bisa recovery dari error state
+  webview.__originalUrl = url;
   webviewContainer.appendChild(webview);
   return webview;
 }
@@ -147,8 +149,15 @@ function attachWebviewListeners(
 
   // ✅ PROGRESS BAR: finish + hide loading overlay
   webview.addEventListener("did-finish-load", () => {
-      hideLoadingOverlay();
+    hideLoadingOverlay();
     webview.__hasInjectedError = false; // Reset error flag
+    // Update __originalUrl hanya jika bukan data: URL (error page)
+    try {
+      const currentUrl = webview.getURL();
+      if (currentUrl && !currentUrl.startsWith("data:")) {
+        webview.__originalUrl = currentUrl;
+      }
+    } catch (_) {}
     const isActive =
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
@@ -159,6 +168,13 @@ function attachWebviewListeners(
   // ✅ PROGRESS BAR: error + hide loading overlay
   webview.addEventListener("did-fail-load", (e) => {
     if (e.errorCode === -3) return; // aborted
+    // Abaikan error dari data: URL (error page kita sendiri)
+    if (e.validatedURL && e.validatedURL.startsWith("data:")) return;
+
+    // Simpan URL yang gagal agar bisa di-retry saat reload
+    if (e.validatedURL && !e.validatedURL.startsWith("data:")) {
+      webview.__originalUrl = e.validatedURL;
+    }
 
     hideLoadingOverlay();
     const isActive =
@@ -280,7 +296,9 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
 </html>`;
 
   webview.__hasInjectedError = true;
-  webview.loadURL(`data:text/html,${encodeURIComponent(errorHtml)}`);
+  // Catch promise rejection — ERR_ABORTED terjadi karena loadURL membatalkan
+  // navigasi sebelumnya. Ini normal dan bukan error fungsional.
+  webview.loadURL(`data:text/html,${encodeURIComponent(errorHtml)}`).catch(() => {});
 }
 
 function mapErrorCodeToMessage(code, description, url = "") {
@@ -338,6 +356,35 @@ function isUrlInActiveServiceDomain(url) {
   return false;
 }
 
+/**
+ * Smart reload: jika webview sedang menampilkan error page (data: URL),
+ * reload ke URL asli service. Jika normal, pakai reload() biasa.
+ */
+function reloadActiveWebview() {
+  if (!state.activeServiceTabId) return;
+  const tab = state.serviceTabs.get(state.activeServiceTabId);
+  if (!tab?.webview) return;
+
+  const webview = tab.webview;
+
+  // Cek apakah webview stuck di error page
+  let currentUrl = "";
+  try {
+    currentUrl = webview.getURL();
+  } catch (_) {}
+
+  const isOnErrorPage = webview.__hasInjectedError || currentUrl.startsWith("data:");
+
+  if (isOnErrorPage && webview.__originalUrl) {
+    // Reset error state dan navigate ulang ke URL asli
+    webview.__hasInjectedError = false;
+    showLoadingOverlay(tab.serviceName || "service");
+    webview.loadURL(webview.__originalUrl).catch(() => {});
+  } else {
+    webview.reload();
+  }
+}
+
 export {
   createWebviewForTab,
   showWebview,
@@ -349,5 +396,6 @@ export {
   injectWebviewErrorPage,
   mapErrorCodeToMessage,
   isUrlInActiveServiceDomain,
+  reloadActiveWebview,
   webviewContainer,
 };

@@ -16,7 +16,7 @@ import {
 } from "./auth.js";
 import { setupBrowserListeners } from "./browser-tabs.js";
 import { setupLogModal } from "./log-modal.js";
-import { isUrlInActiveServiceDomain } from "./webview.js";
+import { isUrlInActiveServiceDomain, reloadActiveWebview } from "./webview.js";
 import { setupThemeToggle } from "./theme-toggle.js";
 
 const authScreen = document.getElementById("auth-screen");
@@ -112,6 +112,11 @@ async function init() {
   setupBrowserListeners();
   setupLogModal();
   setupThemeToggle();
+
+  // Ctrl+R / F5 → reload hanya webview aktif (bukan seluruh BrowserWindow)
+  window.electronAPI.onReloadActiveWebview(() => {
+    reloadActiveWebview();
+  });
 
   try {
     const proxyState = await window.electronAPI.getActiveIdentitiesFromProxy();

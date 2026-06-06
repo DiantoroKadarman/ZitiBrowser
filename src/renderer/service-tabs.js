@@ -115,6 +115,7 @@ window.openDevTab = function (index) {
   webview.style.width = "100%";
   webview.style.height = "100%";
   webview.classList.add("hidden");
+  webview.__originalUrl = item.url; // Simpan URL asli untuk recovery dari error
   webviewContainer.appendChild(webview);
 
   state.serviceTabs.set(tabId, {
@@ -179,6 +180,7 @@ window.openServiceTab = async function (identityId, serviceName) {
   webview.style.width = "100%";
   webview.style.height = "100%";
   webview.classList.add("hidden");
+  webview.__originalUrl = fullUrl; // Simpan URL asli untuk recovery dari error
   webviewContainer.appendChild(webview);
 
   state.serviceTabs.set(tabId, {

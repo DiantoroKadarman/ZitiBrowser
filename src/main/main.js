@@ -22,6 +22,32 @@ const createWindow = () => {
   // Set mainWindow reference untuk proxy log updates
   setMainWindow(mainWindow);
 
+  // --- ISSUE 2 FIX: Intercept Ctrl+R / F5 agar tidak me-reload BrowserWindow ---
+  // Alih-alih reload seluruh window (default Electron), kirim IPC ke renderer
+  // agar hanya webview yang aktif yang di-reload.
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    // Ctrl+R atau Ctrl+Shift+R (reload / hard reload)
+    const isCtrlR =
+      input.type === "keyDown" &&
+      input.key.toLowerCase() === "r" &&
+      input.control &&
+      !input.alt &&
+      !input.meta;
+
+    // F5 (reload)
+    const isF5 =
+      input.type === "keyDown" &&
+      input.key === "F5" &&
+      !input.control &&
+      !input.alt &&
+      !input.meta;
+
+    if (isCtrlR || isF5) {
+      event.preventDefault(); // Blokir default reload BrowserWindow
+      mainWindow.webContents.send("reload-active-webview");
+    }
+  });
+
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
