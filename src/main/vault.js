@@ -36,10 +36,37 @@ const IV_LENGTH = 12; // 96 bit untuk GCM
 const SALT_LENGTH = 16;
 const ITERATIONS = 100000;
 const DIGEST = "sha256";
+const HMAC_LENGTH = 32; // SHA-256 HMAC = 32 bytes
+
+// Magic header untuk format baru (dengan HMAC)
+const VAULT_MAGIC = "ZVLT"; // 4 bytes: Ziti Vault
+const VAULT_VERSION = 2; // 1 byte: versi format
+
+// --- Custom Error class untuk vault ---
+class VaultError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.name = "VaultError";
+    this.code = code; // 'VAULT_TAMPERED' | 'WRONG_PASSWORD' | 'VAULT_CORRUPT'
+  }
+}
 
 // --- FUNGSI: Turunkan kunci dari password dan salt ---
 function deriveKey(password, salt) {
   return crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, DIGEST);
+}
+
+// Derive a password verification hash (independent of file content)
+// Used to check "is the password correct?" without needing to decrypt
+function derivePasswordVerifyHash(password, salt) {
+  const verifySalt = Buffer.concat([salt, Buffer.from("ziti-pw-verify")]);
+  return crypto.pbkdf2Sync(verifySalt, password, ITERATIONS, HMAC_LENGTH, DIGEST);
+}
+
+// Derive an HMAC key for file integrity (different from encryption key)
+function deriveIntegrityKey(password, salt) {
+  const integritySalt = Buffer.concat([salt, Buffer.from("ziti-integrity")]);
+  return crypto.pbkdf2Sync(password, integritySalt, ITERATIONS, KEY_LENGTH, DIGEST);
 }
 
 function encryptStringWithPassword(plaintext, password) {
@@ -53,13 +80,133 @@ function encryptStringWithPassword(plaintext, password) {
   ]);
   const authTag = cipher.getAuthTag();
 
-  return Buffer.concat([salt, iv, authTag, encrypted]).toString("base64");
+  // Data terenkripsi
+  const encryptedPayload = Buffer.concat([salt, iv, authTag, encrypted]);
+
+  // 1. Password verification hash (untuk cek password benar/salah)
+  const pwVerifyHash = derivePasswordVerifyHash(password, salt);
+
+  // 2. Integrity HMAC (untuk cek apakah file dimanipulasi)
+  const integrityKey = deriveIntegrityKey(password, salt);
+  const integrityHmac = crypto
+    .createHmac("sha256", integrityKey)
+    .update(encryptedPayload)
+    .digest();
+
+  // Format: MAGIC(4) + VERSION(1) + PW_VERIFY(32) + INTEGRITY_HMAC(32) + encryptedPayload
+  const header = Buffer.alloc(5);
+  header.write(VAULT_MAGIC, 0, 4, "ascii");
+  header.writeUInt8(VAULT_VERSION, 4);
+
+  return Buffer.concat([header, pwVerifyHash, integrityHmac, encryptedPayload]).toString("base64");
 }
 
 function decryptStringWithPassword(encryptedBase64, password) {
-  const buffer = Buffer.from(encryptedBase64, "base64");
+  const fullBuffer = Buffer.from(encryptedBase64, "base64");
+
+  // --- Deteksi format: baru (dengan verifikasi) atau lama (tanpa) ---
+  const hasNewFormat =
+    fullBuffer.length >= 5 &&
+    fullBuffer.subarray(0, 4).toString("ascii") === VAULT_MAGIC;
+
+  if (hasNewFormat) {
+    return decryptNewFormat(fullBuffer, password);
+  } else {
+    return decryptLegacyFormat(fullBuffer, password);
+  }
+}
+
+// --- Format BARU ---
+// MAGIC(4) + VERSION(1) + PW_VERIFY(32) + INTEGRITY_HMAC(32) + salt(16) + iv(12) + authTag(16) + encrypted
+function decryptNewFormat(fullBuffer, password) {
+  const headerSize = 5;
+  const minSize = headerSize + HMAC_LENGTH + HMAC_LENGTH + SALT_LENGTH + IV_LENGTH + 16;
+
+  if (fullBuffer.length < minSize) {
+    throw new VaultError(
+      "File vault rusak atau tidak valid — ukuran file terlalu kecil.",
+      "VAULT_CORRUPT"
+    );
+  }
+
+  let offset = headerSize;
+
+  // Ekstrak password verification hash
+  const storedPwHash = fullBuffer.subarray(offset, offset + HMAC_LENGTH);
+  offset += HMAC_LENGTH;
+
+  // Ekstrak integrity HMAC
+  const storedIntegrityHmac = fullBuffer.subarray(offset, offset + HMAC_LENGTH);
+  offset += HMAC_LENGTH;
+
+  // Sisa = encrypted payload (salt + iv + authTag + encrypted)
+  const encryptedPayload = fullBuffer.subarray(offset);
+
+  const salt = encryptedPayload.subarray(0, SALT_LENGTH);
+  const iv = encryptedPayload.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
+  const authTag = encryptedPayload.subarray(
+    SALT_LENGTH + IV_LENGTH,
+    SALT_LENGTH + IV_LENGTH + 16
+  );
+  const encrypted = encryptedPayload.subarray(SALT_LENGTH + IV_LENGTH + 16);
+
+  // --- LANGKAH 1: Verifikasi password ---
+  const computedPwHash = derivePasswordVerifyHash(password, salt);
+  const isPasswordCorrect = crypto.timingSafeEqual(storedPwHash, computedPwHash);
+
+  if (!isPasswordCorrect) {
+    // Password salah — pasti WRONG_PASSWORD
+    throw new VaultError(
+      "Password vault salah.",
+      "WRONG_PASSWORD"
+    );
+  }
+
+  // --- LANGKAH 2: Password benar → cek integritas file ---
+  const integrityKey = deriveIntegrityKey(password, salt);
+  const computedIntegrityHmac = crypto
+    .createHmac("sha256", integrityKey)
+    .update(encryptedPayload)
+    .digest();
+
+  const isFileIntact = crypto.timingSafeEqual(storedIntegrityHmac, computedIntegrityHmac);
+
+  if (!isFileIntact) {
+    // Password benar TAPI file telah dimanipulasi!
+    throw new VaultError(
+      "File vault telah dimanipulasi! Integritas data tidak dapat diverifikasi. " +
+        "Hapus file vault dan buat ulang dengan enrollment baru.",
+      "VAULT_TAMPERED"
+    );
+  }
+
+  // --- LANGKAH 3: Password benar + file utuh → decrypt ---
+  const key = deriveKey(password, salt);
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted;
+  try {
+    decrypted =
+      decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
+  } catch (e) {
+    // Seharusnya tidak terjadi jika HMAC cocok
+    throw new VaultError(
+      "File vault rusak — integritas terverifikasi tapi dekripsi gagal.",
+      "VAULT_CORRUPT"
+    );
+  }
+  return decrypted;
+}
+
+// --- Format LAMA: salt + iv + authTag + encrypted (tanpa HMAC) ---
+// Backward compatible: vault lama tanpa HMAC akan di-upgrade saat writeVault berikutnya
+function decryptLegacyFormat(buffer, password) {
   if (buffer.length < SALT_LENGTH + IV_LENGTH + 16) {
-    throw new Error("File terenkripsi rusak atau tidak valid.");
+    throw new VaultError(
+      "File vault rusak atau tidak valid.",
+      "VAULT_CORRUPT"
+    );
   }
 
   const salt = buffer.subarray(0, SALT_LENGTH);
@@ -79,7 +226,12 @@ function decryptStringWithPassword(encryptedBase64, password) {
     decrypted =
       decipher.update(encrypted, undefined, "utf8") + decipher.final("utf8");
   } catch (e) {
-    throw new Error("Password salah atau file rusak.");
+    // Format lama: tidak bisa membedakan password salah vs file dimanipulasi
+    throw new VaultError(
+      "Password salah atau file vault telah dimanipulasi. " +
+        "Jika Anda yakin password benar, kemungkinan file vault telah diubah oleh pihak lain.",
+      "WRONG_PASSWORD_OR_TAMPERED"
+    );
   }
   return decrypted;
 }
@@ -105,10 +257,18 @@ async function readVault(password) {
     const decryptedJson = decryptStringWithPassword(encryptedData, password);
     return JSON.parse(decryptedJson);
   } catch (e) {
-    if (e.message === "Password salah atau file rusak.") {
-      throw new Error("Password vault salah.");
+    if (e instanceof VaultError) {
+      // Propagate VaultError dengan code yang tepat
+      throw e;
     }
-    throw new Error(`Gagal baca vault: ${e.message}`);
+    if (e instanceof SyntaxError) {
+      // JSON.parse gagal — data terdekripsi tapi bukan JSON valid
+      throw new VaultError(
+        "File vault rusak — data terdekripsi bukan format yang valid.",
+        "VAULT_CORRUPT"
+      );
+    }
+    throw new VaultError(`Gagal baca vault: ${e.message}`, "VAULT_CORRUPT");
   }
 }
 
@@ -138,7 +298,12 @@ async function determineInitialState() {
       : { type: "show-identity-list", payload: { identities } };
   } catch (e) {
     currentVaultPassword = null; // reset jika error
-    return { type: "need-vault-password", error: "Password salah." };
+    const errorCode = e instanceof VaultError ? e.code : undefined;
+    return {
+      type: "need-vault-password",
+      error: e.message || "Password salah.",
+      errorCode,
+    };
   }
 }
 
@@ -240,6 +405,7 @@ function clearPassword() {
 }
 
 export {
+  VaultError,
   vaultExists,
   readVault,
   writeVault,

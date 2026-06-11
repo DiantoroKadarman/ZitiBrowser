@@ -49,8 +49,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onNewTabRequest: (callback) => {
     const handler = (_, url) => callback(url);
-    ipcRenderer.on("app:new-browser-tab", handler);
-    return () => ipcRenderer.off("app:new-browser-tab", handler);
+    ipcRenderer.on("app:window-open-intercepted", handler);
+    return () => ipcRenderer.off("app:window-open-intercepted", handler);
   },
 
   // === Keyboard Shortcut: Ctrl+R / F5 → reload active webview only ===

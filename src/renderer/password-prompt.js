@@ -118,6 +118,8 @@ function setupVaultPasswordScreen(showScreenFn, handleVaultUnlockedFn) {
   // Reset UI
   input.value = "";
   errorEl.textContent = "";
+  errorEl.innerHTML = "";
+  errorEl.className = "vault-password-error";
   errorEl.style.display = "none";
   input.focus();
 
@@ -135,6 +137,7 @@ function setupVaultPasswordScreen(showScreenFn, handleVaultUnlockedFn) {
     if (pwd.length < 8) {
       errorEl.textContent = "Password minimal 8 karakter.";
       errorEl.style.display = "block";
+      errorEl.className = "vault-password-error";
       input.focus();
       return;
     }
@@ -150,7 +153,34 @@ function setupVaultPasswordScreen(showScreenFn, handleVaultUnlockedFn) {
         } else {
           // ❌ Kembali ke vault-password-screen + tampilkan error
           showScreenFn("vault-password");
-          errorEl.textContent = result.message || "Password salah.";
+
+          const code = result.errorCode;
+
+          if (code === "VAULT_TAMPERED") {
+            // 🔴 File vault telah dimanipulasi
+            errorEl.className = "vault-password-error vault-error-tampered";
+            errorEl.innerHTML =
+              `<strong>⚠️ Peringatan Keamanan!</strong><br>` +
+              `File vault telah dimanipulasi oleh pihak lain.<br>` +
+              `Hapus file vault dan buat ulang dengan enrollment baru.`;
+          } else if (code === "VAULT_CORRUPT") {
+            // 🟠 File vault rusak
+            errorEl.className = "vault-password-error vault-error-corrupt";
+            errorEl.innerHTML =
+              `<strong>⚠️ File Vault Rusak</strong><br>` +
+              (result.message || "File vault tidak dapat dibaca.");
+          } else if (code === "WRONG_PASSWORD_OR_TAMPERED") {
+            // 🟡 Format lama — ambiguitas
+            errorEl.className = "vault-password-error vault-error-ambiguous";
+            errorEl.innerHTML =
+              `<strong>Password salah atau file dimanipulasi</strong><br>` +
+              `Jika Anda yakin password benar, kemungkinan file vault telah diubah oleh pihak lain.`;
+          } else {
+            // 🔵 Password salah (default / WRONG_PASSWORD)
+            errorEl.className = "vault-password-error";
+            errorEl.textContent = result.message || "Password salah.";
+          }
+
           errorEl.style.display = "block";
           setTimeout(() => input.focus(), 50);
         }
@@ -158,6 +188,7 @@ function setupVaultPasswordScreen(showScreenFn, handleVaultUnlockedFn) {
       .catch((err) => {
         console.error("Unlock vault error:", err);
         showScreenFn("vault-password");
+        errorEl.className = "vault-password-error";
         errorEl.textContent = err.message || "Gagal membuka vault.";
         errorEl.style.display = "block";
         setTimeout(() => input.focus(), 50);

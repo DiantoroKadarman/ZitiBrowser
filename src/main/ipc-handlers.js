@@ -2,6 +2,7 @@ import { ipcMain, net } from "electron";
 import path from "node:path";
 import fs from "node:fs/promises";
 import {
+  VaultError,
   vaultExists,
   readVault,
   addIdentityToVault,
@@ -19,7 +20,7 @@ import {
   makeApiRequest,
   extractNameFromJwt,
 } from "./api.js";
-import { getLogFilePath } from "./proxy.js";
+import { getLogFilePath, writeLog } from "./proxy.js";
 
 function registerAllHandlers(mainWindow) {
   // --- handle-enrollment ---
@@ -27,11 +28,14 @@ function registerAllHandlers(mainWindow) {
     "handle-enrollment",
     async (event, { jwtContent, fileName, password }) => {
       try {
+        writeLog("IDENTITY", `Memulai enrollment identitas (file: ${fileName || "N/A"})`);
+
         if (!jwtContent?.includes(".")) throw new Error("JWT tidak valid.");
         if (!password || password.length < 8)
           throw new Error("Password minimal 8 karakter.");
 
         // Enroll identity via API
+        writeLog("IDENTITY", "Mengirim JWT ke proxy untuk enrollment...");
         const identityData = await makeApiRequest("POST", ZITI_ENROLL_URL, {
           jwt: jwtContent,
         });
@@ -39,6 +43,7 @@ function registerAllHandlers(mainWindow) {
         if (!identityData || typeof identityData.id !== "object") {
           throw new Error("Respons /enroll tidak valid.");
         }
+        writeLog("IDENTITY", "Enrollment berhasil dari proxy, memproses data identitas...");
 
         let safeName = null;
 
@@ -72,6 +77,8 @@ function registerAllHandlers(mainWindow) {
         setCurrentPassword(password);
         mainWindow?.webContents.send("vault-updated");
 
+        writeLog("IDENTITY", `Identitas '${safeName}' berhasil di-enroll dan disimpan ke vault`);
+
         return {
           success: true,
           message: `Identitas '${safeName}' berhasil didaftarkan dan disimpan di vault`,
@@ -79,6 +86,7 @@ function registerAllHandlers(mainWindow) {
         };
       } catch (e) {
         console.error("Pendaftaran Gagal:", e);
+        writeLog("ERROR", `Enrollment gagal: ${e.message}`);
         return { success: false, message: e.message || "Gagal enroll." };
       }
     }
@@ -89,6 +97,8 @@ function registerAllHandlers(mainWindow) {
     "handle-identity-upload",
     async (event, { identityFile, fileName, password }) => {
       try {
+        writeLog("IDENTITY", `Memulai upload identitas (file: ${fileName || "N/A"})`);
+
         if (!identityFile) throw new Error("File identitas diperlukan.");
         if (!password || password.length < 8)
           throw new Error("Password minimal 8 karakter.");
@@ -115,7 +125,7 @@ function registerAllHandlers(mainWindow) {
             base = base.replace(exts, "");
           }
 
-          console.log(`[DEBUG] fileName: "${fileName}" → base: "${base}"`);
+          console.log(`[DEBUG] fileName: "${fileName}" base: "${base}"`);
           if (base && base.trim()) {
             safeName = base
               .trim()
@@ -137,6 +147,8 @@ function registerAllHandlers(mainWindow) {
         setCurrentPassword(password);
         mainWindow?.webContents.send("vault-updated");
 
+        writeLog("IDENTITY", `Identitas '${safeName}' berhasil di-upload dan disimpan ke vault`);
+
         return {
           success: true,
           message: `Identitas '${safeName}' berhasil diimpor dan disimpan di vault`,
@@ -144,6 +156,7 @@ function registerAllHandlers(mainWindow) {
         };
       } catch (e) {
         console.error("Gagal impor identitas:", e);
+        writeLog("ERROR", `Upload identitas gagal: ${e.message}`);
         return {
           success: false,
           message: e.message || "Gagal memproses file identitas.",
@@ -159,17 +172,23 @@ function registerAllHandlers(mainWindow) {
 
   ipcMain.handle("vault:unlock", async (event, password) => {
     try {
+      writeLog("VAULT", "Mencoba membuka vault...");
       const vault = await readVault(password);
       setCurrentPassword(password);
       mainWindow?.webContents.send("vault-updated");
+      const count = (vault.identities || []).length;
+      writeLog("VAULT", `Vault berhasil dibuka (${count} identitas ditemukan)`);
       return {
         success: true,
         identities: vault.identities || [],
       };
     } catch (e) {
+      const errorCode = e instanceof VaultError ? e.code : undefined;
+      writeLog("ERROR", `Gagal membuka vault: [${errorCode || "UNKNOWN"}] ${e.message}`);
       return {
         success: false,
         message: e.message,
+        errorCode,
       };
     }
   });
@@ -213,13 +232,16 @@ function registerAllHandlers(mainWindow) {
   ipcMain.handle("delete-identity", async (event, identityId) => {
     if (!identityId) throw new Error("identity_id diperlukan");
     try {
+      writeLog("IDENTITY", `Menghapus identitas dari proxy: ${identityId}`);
       await makeApiRequest(
         "DELETE",
         `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(identityId)}`
       );
+      writeLog("IDENTITY", `Identitas '${identityId}' berhasil dihapus dari proxy`);
       return { success: true };
     } catch (error) {
       console.error("Gagal hapus identitas:", error);
+      writeLog("ERROR", `Gagal menghapus identitas '${identityId}': ${error.message}`);
       throw error;
     }
   });
@@ -234,11 +256,14 @@ function registerAllHandlers(mainWindow) {
         return { success: false, message: "Password minimal 8 karakter." };
       }
       try {
+        writeLog("IDENTITY", `Menghapus identitas dari vault: ${idString}`);
         const result = await removeIdentityFromVault(idString, password);
         mainWindow?.webContents.send("vault-updated");
+        writeLog("IDENTITY", `Identitas '${idString}' berhasil dihapus dari vault (vault: ${result.remainingCount})`);
         return { success: true, result };
       } catch (e) {
         console.error("Gagal hapus identitas:", e);
+        writeLog("ERROR", `Gagal menghapus identitas '${idString}' dari vault: ${e.message}`);
         return {
           success: false,
           message: e.message || "Gagal menghapus identitas.",
@@ -271,6 +296,8 @@ function registerAllHandlers(mainWindow) {
   });
 
   ipcMain.handle("logout", async () => {
+    writeLog("SESSION", "Memulai proses logout...");
+
     // Reset proxy dan session
     if (mainWindow) {
       try {
@@ -280,8 +307,10 @@ function registerAllHandlers(mainWindow) {
         await mainWindow.webContents.session.clearStorageData({
           storages: ['cookies', 'cachestorage', 'serviceworkers', 'shadercache'],
         });
+        writeLog("SESSION", "Proxy session di-reset ke direct");
       } catch (error) {
         console.error("Gagal reset proxy/session:", error);
+        writeLog("ERROR", `Gagal reset proxy/session: ${error.message}`);
       }
     }
 
@@ -289,6 +318,7 @@ function registerAllHandlers(mainWindow) {
     try {
       const response = await makeApiRequest("GET", ZITI_IDENTITIES_URL);
       if (response?.services_collections?.length > 0) {
+        writeLog("SESSION", `Menghapus ${response.services_collections.length} identitas dari proxy...`);
         for (const coll of response.services_collections) {
           const id = coll.identity_id?.trim();
           if (id) {
@@ -296,16 +326,19 @@ function registerAllHandlers(mainWindow) {
               "DELETE",
               `${ZITI_IDENTITY_URL}?id=${encodeURIComponent(id)}`
             );
+            writeLog("IDENTITY", `Identitas '${coll.identity_name || id}' dihapus dari proxy (logout)`);
           }
         }
       }
     } catch (error) {
       console.warn("Gagal bersihkan identitas dari proxy:", error.message);
+      writeLog("WARNING", `Gagal bersihkan identitas dari proxy: ${error.message}`);
     }
 
     // Reset password vault untuk sesi ini
     clearPassword();
     mainWindow?.webContents.send("vault-locked");
+    writeLog("SESSION", "Logout berhasil — vault dikunci, semua identitas dihapus");
     console.log("Logout berhasil.");
     return { success: true };
   });
@@ -390,6 +423,8 @@ function registerAllHandlers(mainWindow) {
       return { success: false, message: "Vault terkunci." };
     }
 
+    writeLog("SESSION", `Memulai login ${identityIdList.length} identitas: [${identityIdList.join(", ")}]`);
+
     try {
       const vault = await readVault(currentPassword);
 
@@ -404,16 +439,21 @@ function registerAllHandlers(mainWindow) {
       await event.sender.session.setProxy({
         proxyRules: ZITI_PROXY_ADDRESS,
       });
+      writeLog("SESSION", `Proxy di-set ke ${ZITI_PROXY_ADDRESS}`);
 
       // 🔁 Kirim semua identitas ke `/identity` (proxy biasanya replace active identity, jadi loop sequensial)
       for (const identity of identitiesToLogin) {
+        writeLog("IDENTITY", `Mengirim identitas '${identity.name || identity.idString}' ke proxy...`);
         await makeApiRequest(
           "POST",
           ZITI_IDENTITY_URL,
           identity,
           "application/json"
         );
+        writeLog("IDENTITY", `Identitas '${identity.name || identity.idString}' berhasil di-load ke proxy`);
       }
+
+      writeLog("SESSION", `Login selesai — ${identitiesToLogin.length} identitas aktif`);
 
       return {
         success: true,
@@ -424,6 +464,7 @@ function registerAllHandlers(mainWindow) {
         })),
       };
     } catch (e) {
+      writeLog("ERROR", `Login gagal: ${e.message}`);
       return {
         success: false,
         message: e.message || "Gagal memproses login.",

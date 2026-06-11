@@ -65,7 +65,7 @@ app.on("web-contents-created", (event, contents) => {
   if (contents.getType() === "webview") {
     contents.setWindowOpenHandler((details) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("app:new-browser-tab", details.url);
+        mainWindow.webContents.send("app:window-open-intercepted", details.url);
       }
       return { action: "deny" };
     });
