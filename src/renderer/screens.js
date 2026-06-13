@@ -146,4 +146,4 @@ async function init() {
   setupAuthListeners();
 }
 
-export { showScreen, handleInitialState, init };
+export {showScreen, handleInitialState, init};

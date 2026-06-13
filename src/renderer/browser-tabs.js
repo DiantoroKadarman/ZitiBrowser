@@ -1,9 +1,5 @@
-// --- Browser Controls (Strict Whitelist Mode) ---
-// Tidak ada browser tabs — hanya kontrol navigasi untuk service webviews
-
 import { state } from "./state.js";
 import { updateNavButtons, reloadActiveWebview } from "./webview.js";
-import { renderSidebar } from "./service-tabs.js";
 
 function setupBrowserListeners() {
   const backButton = document.getElementById("back-button");

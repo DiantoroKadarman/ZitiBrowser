@@ -48,7 +48,6 @@ function displayIdentityData() {
 }
 
 window.toggleIdentityFromModal = function (identityId) {
-  // Use toggleIdentity from service-tabs (via window global)
   window.toggleIdentity(identityId);
   displayIdentityData();
 };
@@ -78,9 +77,9 @@ window.deleteIdentityFromModal = async function (identityId) {
     if (state.activeIdentities.length === 0) {
       identityModal.classList.add("hidden");
       identityModal.classList.remove("flex");
-      // Lazy import to avoid circular dependency
-      const { showScreen } = await import("./screens.js");
-      showScreen("authentication");
+      // Semua identitas habis → logout proper (reset proxy, state, kembali ke vault password)
+      const { handleLogout } = await import("./auth.js");
+      await handleLogout();
     }
     console.log(`Identitas ${identityId} dihapus.`);
   } catch (err) {

@@ -308,7 +308,7 @@ async function determineInitialState() {
 }
 
 async function addIdentityToVault(identity, password) {
-  await vaultLock.acquire(); // 🔒 tunggu giliran
+  await vaultLock.acquire(); // tunggu giliran
   try {
     let vault = { identities: [] };
     if (await vaultExists()) {

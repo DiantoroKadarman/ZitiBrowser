@@ -1,6 +1,3 @@
-// --- Webview Factory & Listeners (Strict Whitelist Mode) ---
-// Semua webview = service webview. Tidak ada browser tab.
-
 import { state } from "./state.js";
 import {
   showProgressBar,

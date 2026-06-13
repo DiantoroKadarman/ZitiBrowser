@@ -24,9 +24,7 @@ import { getLogFilePath, writeLog } from "./proxy.js";
 
 function registerAllHandlers(mainWindow) {
   // --- handle-enrollment ---
-  ipcMain.handle(
-    "handle-enrollment",
-    async (event, { jwtContent, fileName, password }) => {
+  ipcMain.handle("handle-enrollment",async (event, { jwtContent, fileName, password }) => {
       try {
         writeLog("IDENTITY", `Memulai enrollment identitas (file: ${fileName || "N/A"})`);
 
@@ -93,9 +91,7 @@ function registerAllHandlers(mainWindow) {
   );
 
   // --- handle-identity-upload ---
-  ipcMain.handle(
-    "handle-identity-upload",
-    async (event, { identityFile, fileName, password }) => {
+  ipcMain.handle("handle-identity-upload", async (event, { identityFile, fileName, password }) => {
       try {
         writeLog("IDENTITY", `Memulai upload identitas (file: ${fileName || "N/A"})`);
 

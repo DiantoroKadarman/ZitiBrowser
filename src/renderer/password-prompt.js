@@ -161,7 +161,7 @@ function setupVaultPasswordScreen(showScreenFn, handleVaultUnlockedFn) {
             errorEl.className = "vault-password-error vault-error-tampered";
             errorEl.innerHTML =
               `<strong>⚠️ Peringatan Keamanan!</strong><br>` +
-              `File vault telah dimanipulasi oleh pihak lain.<br>` +
+              `File vault telah dimanipulasi / tidak valid.<br>` +
               `Hapus file vault dan buat ulang dengan enrollment baru.`;
           } else if (code === "VAULT_CORRUPT") {
             // 🟠 File vault rusak

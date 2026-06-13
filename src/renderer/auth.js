@@ -356,16 +356,16 @@ async function triggerFileUpload(type) {
         );
       }
 
-      // ✅ Auto-login semua identitas baru
-      const newIds = successful
-        .map((r) => r.identity?.idString)
-        .filter(Boolean);
-      if (newIds.length > 0) {
-        const loginRes = await window.electronAPI.loginSelected(newIds);
-        if (!loginRes.success) {
-          console.warn("Auto-login gagal:", loginRes.message);
-        }
-      }
+      // // ✅ Auto-login semua identitas baru
+      // const newIds = successful
+      //   .map((r) => r.identity?.idString)
+      //   .filter(Boolean);
+      // if (newIds.length > 0) {
+      //   const loginRes = await window.electronAPI.loginSelected(newIds);
+      //   if (!loginRes.success) {
+      //     console.warn("Auto-login gagal:", loginRes.message);
+      //   }
+      // }
 
       // ✅ UI feedback
       const toast = document.createElement("div");
