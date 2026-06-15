@@ -1,5 +1,6 @@
 import { state } from "./state.js";
-import { updateNavButtons, reloadActiveWebview } from "./webview.js";
+import { updateNavButtons, reloadActiveWebview, webviewContainer } from "./webview.js";
+import { renderSidebar } from "./service-tabs.js";
 
 function setupBrowserListeners() {
   const backButton = document.getElementById("back-button");
@@ -18,10 +19,30 @@ function setupBrowserListeners() {
   const settingsButton = document.getElementById("settings-button");
   const helpButton = document.getElementById("help-button");
 
-  // Home button — placeholder
+  // Home button — tutup semua tabs, kembali ke empty state "Pilih Service"
   if (searchButton) {
     searchButton.addEventListener("click", () => {
-      // Placeholder — belum ada aksi. Akan ditentukan nanti.
+      // Hapus semua webview dari DOM
+      for (const [, tab] of state.serviceTabs) {
+        if (tab.webview?.parentNode) tab.webview.remove();
+      }
+      state.serviceTabs.clear();
+      state.activeServiceTabId = null;
+
+      // Tampilkan empty state
+      const emptyState = document.getElementById("empty-state");
+      if (emptyState) {
+        emptyState.style.display = "flex";
+      }
+
+      // Refresh sidebar (hapus active highlight)
+      renderSidebar();
+
+      // Reset URL bar
+      const urlInput = document.getElementById("url-input");
+      if (urlInput) urlInput.value = "";
+
+      updateNavButtons();
     });
   }
 

@@ -118,35 +118,37 @@
         <!-- SIDEBAR -->
         <aside id="sidebar" class="sidebar">
           <!-- Brand -->
-          <div class="sidebar-brand">Ziti Browser</div>
+          <div class="sidebar-brand">Service Tabs</div>
 
           <!-- Sidebar Content -->
           <div id="sidebar-content" class="flex-grow overflow-y-auto scrollbar-thin px-2">
             <!-- Services Section -->
-            <div class="sidebar-section-label">Services</div>
+            <!-- <div class="sidebar-section-label">Services</div> -->
             <div id="service-tabs-container" class="space-y-0.5 px-1">
               <!-- Rendered by JS -->
             </div>
           </div>
 
           <!-- Sidebar Footer -->
-          <div class="sidebar-footer">
-            <button id="settings-button" class="sidebar-footer-btn" title="Settings (Identity)">
+          <!-- <div class="sidebar-footer">
+            <button id="settings-button" class="sidebar-footer-btn" title="Kelola Identitas">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
               </svg>
-              Settings
+              Identitas
             </button>
-            <button id="help-button" class="sidebar-footer-btn" title="Help (Proxy Log)">
+            <button id="help-button" class="sidebar-footer-btn" title="Lihat Proxy Log">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
               </svg>
-              Help
+              Log
             </button>
-          </div>
+          </div> -->
         </aside>
 
         <!-- Content Area -->
@@ -333,7 +335,7 @@
                 class="auth-input pr-12"
                 autofocus
               />
-              <button id="toggle-vault-password-visibility" class="absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600">
+              <button id="toggle-vault-password-visibility" class="toggle-password-visibility absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600">
                 <img id="vault-eye-icon" src="/icon/eye.svg" class="w-5 h-5" />
                 <img id="vault-eye-off-icon" src="/icon/eye-off.svg" class="w-5 h-5 hidden" />
               </button>
@@ -379,7 +381,7 @@
             autocomplete="off"
             autofocus
           />
-          <button type="button" id="toggle-password-visibility" class="absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none" aria-label="Toggle password visibility">
+          <button type="button" id="toggle-password-visibility" class="toggle-password-visibility absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none" aria-label="Toggle password visibility">
             <img id="eye-icon" src="/icon/eye.svg" alt="Tampilkan password" class="w-5 h-5" />
             <img id="eye-off-icon" src="/icon/eye-off.svg" alt="Sembunyikan password" class="w-5 h-5 hidden" />
           </button>
@@ -395,7 +397,7 @@
             class="auth-input pr-12"
             autocomplete="off"
           />
-          <button type="button" id="toggle-confirm-password-visibility" class="absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none" aria-label="Toggle confirm password visibility">
+          <button type="button" id="toggle-confirm-password-visibility" class="toggle-password-visibility absolute right-3 top-2.5 text-gray-500 hover:text-indigo-600 focus:outline-none" aria-label="Toggle confirm password visibility">
             <img id="eye-icon-confirm" src="/icon/eye.svg" alt="Tampilkan konfirmasi" class="w-5 h-5" />
             <img id="eye-off-icon-confirm" src="/icon/eye-off.svg" alt="Sembunyikan konfirmasi" class="w-5 h-5 hidden" />
           </button>

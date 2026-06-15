@@ -2,7 +2,7 @@
   "name": "zitibrowser",
   "productName": "zitibrowser",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Ziti Browser - Secure Electron-based browser for accessing OpenZiti network services",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",

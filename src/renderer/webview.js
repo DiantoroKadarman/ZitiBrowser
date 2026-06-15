@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import {
   showProgressBar,
-  updateProgress,
+  stopTrickle,
   completeProgress,
 } from "./progress-bar.js";
 
@@ -131,26 +131,14 @@ function attachWebviewListeners(
     }
   });
 
-  // ✅ PROGRESS BAR: update
-  if (typeof webview.addEventListener === "function") {
-    webview.addEventListener("did-progress-load", (e) => {
-      if (e.value && e.value > 0) {
-        const isActive =
-          state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
-        if (isActive) {
-          updateProgress(e.value * 100);
-        }
-      }
-    });
-  }
-
   // ✅ PROGRESS BAR: finish + hide loading overlay
   webview.addEventListener("did-finish-load", () => {
     hideLoadingOverlay();
     webview.__hasInjectedError = false; // Reset error flag
     // Update __originalUrl hanya jika bukan data: URL (error page)
+    let currentUrl = "";
     try {
-      const currentUrl = webview.getURL();
+      currentUrl = webview.getURL();
       if (currentUrl && !currentUrl.startsWith("data:")) {
         webview.__originalUrl = currentUrl;
       }
@@ -158,7 +146,37 @@ function attachWebviewListeners(
     const isActive =
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
+      stopTrickle();
       completeProgress(true);
+    }
+
+    // Deteksi HTTP error dari proxy (e.g. Bad Gateway, failed to dial)
+    // Error ini berupa plain text response, bukan network error,
+    // sehingga did-fail-load tidak ter-trigger.
+    if (currentUrl && !currentUrl.startsWith("data:")) {
+      webview.executeJavaScript(`document.body ? document.body.innerText : ""`)
+        .then((bodyText) => {
+          if (!bodyText || bodyText.length > 500) return; // Bukan error page jika konten terlalu panjang
+          const errorPatterns = [
+            "Bad Gateway",
+            "failed to dial",
+            "has no terminators",
+            "unable to dial service",
+            "Service Unavailable",
+            "Bad Request",
+          ];
+          const isProxyError = errorPatterns.some((p) =>
+            bodyText.includes(p)
+          );
+          if (isProxyError) {
+            injectWebviewErrorPage(webview, {
+              message: bodyText.trim(),
+              errorCode: "Proxy Error",
+              url: currentUrl,
+            });
+          }
+        })
+        .catch(() => {});
     }
   });
 
@@ -177,6 +195,7 @@ function attachWebviewListeners(
     const isActive =
       state.serviceTabs.get(state.activeServiceTabId)?.webview === webview;
     if (isActive) {
+      stopTrickle();
       completeProgress(false);
       const errorMsg = mapErrorCodeToMessage(
         e.errorCode,
@@ -204,6 +223,9 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
   const safeMessage = message.replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const safeUrl = url ? url.replace(/</g, "&lt;").replace(/>/g, "&gt;") : "—";
 
+  // Deteksi theme saat ini dari parent document
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+
   const errorHtml = `
 <!DOCTYPE html>
 <html>
@@ -214,8 +236,8 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     body {
-      background-color: #f9fafb;
-      color: #111827;
+      background-color: ${isDark ? "#1a1a1a" : "#f9fafb"};
+      color: ${isDark ? "#e5e5e5" : "#111827"};
       font-family: 'Inter', -apple-system, sans-serif;
       margin: 0;
       padding: 0;
@@ -234,7 +256,7 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
       width: 56px;
       height: 56px;
       border-radius: 14px;
-      background-color: #fef2f2;
+      background-color: ${isDark ? "#450a0a" : "#fef2f2"};
       display: flex;
       align-items: center;
       justify-content: center;
@@ -243,25 +265,25 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
     .error-icon svg {
       width: 28px;
       height: 28px;
-      color: #ef4444;
+      color: ${isDark ? "#fca5a5" : "#ef4444"};
     }
     h1 {
       font-size: 1.25rem;
       font-weight: 600;
       margin-bottom: 0.5rem;
-      color: #111827;
+      color: ${isDark ? "#f5f5f5" : "#111827"};
     }
     p {
       font-size: 0.875rem;
-      color: #6b7280;
+      color: ${isDark ? "#a3a3a3" : "#6b7280"};
       margin: 0.25rem 0;
     }
     .url-display {
       font-family: ui-monospace, 'Cascadia Code', monospace;
-      background: #f3f4f6;
+      background: ${isDark ? "#2a2a2a" : "#f3f4f6"};
       padding: 0.25rem 0.75rem;
       border-radius: 8px;
-      color: #374151;
+      color: ${isDark ? "#a3a3a3" : "#374151"};
       font-size: 0.75rem;
       display: inline-block;
       max-width: 100%;
@@ -270,7 +292,7 @@ function injectWebviewErrorPage(webview, { message, errorCode, url }) {
     }
     .error-code {
       font-size: 0.7rem;
-      color: #9ca3af;
+      color: ${isDark ? "#525252" : "#9ca3af"};
       margin-top: 1rem;
       font-family: ui-monospace, monospace;
     }

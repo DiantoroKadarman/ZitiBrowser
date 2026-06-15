@@ -38,7 +38,7 @@ function renderSidebar() {
   let html = "";
   enabledIdentities.forEach((identity) => {
     // Identity label
-    html += `<div class="service-identity-label">${identity.identity_name}</div>`;
+    html  += `<div class="service-identity-label">${identity.identity_name}</div>`;
 
     const servicesHtml =
       identity.services
