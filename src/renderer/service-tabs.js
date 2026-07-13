@@ -13,12 +13,12 @@ import {
 
 const urlInputField = document.getElementById("url-input");
 
-// === DEV WHITELIST — Hapus blok ini saat production ===
-const DEV_WHITELIST = [
-  { label: "Ziti Console", url: "https://ctrl.ziti.local:1280/zac/" },
-  // Tambahkan URL dev lainnya di sini:
-  // { label: "Grafana", url: "http://grafana.local:3000" },
-];
+// === DEV WHITELIST — Uncomment blok ini untuk development ===
+// const DEV_WHITELIST = [
+//   { label: "Ziti Console", url: "https://ctrl.ziti.local:1280/zac/" },
+//   // Tambahkan URL dev lainnya di sini:
+//   // { label: "Grafana", url: "http://grafana.local:3000" },
+// ];
 // === END DEV WHITELIST ===
 
 function renderSidebar() {
@@ -30,7 +30,8 @@ function renderSidebar() {
   const enabledIdentities = state.activeIdentities.filter((id) =>
     state.enabledIdentityIds.has(id.identity_id)
   );
-  if (enabledIdentities.length === 0 && DEV_WHITELIST.length === 0) {
+  // Jika pakai DEV_WHITELIST, ganti dengan: if (enabledIdentities.length === 0 && DEV_WHITELIST.length === 0) {
+  if (enabledIdentities.length === 0) {
     serviceTabsContainer.innerHTML = `<p class="text-sm text-gray-400 px-2 py-3">Tidak ada identitas yang diaktifkan.</p>`;
     return;
   }
@@ -61,29 +62,29 @@ function renderSidebar() {
     html += `<div class="px-1">${servicesHtml}</div>`;
   });
 
-  // === DEV WHITELIST RENDERING ===
-  if (DEV_WHITELIST.length > 0) {
-    html += `
-      <div class="mt-3 pt-3 border-t border-gray-200">
-        <div class="sidebar-section-label" style="padding-left:4px">Dev Shortcuts</div>
-        <div class="px-1">
-          ${DEV_WHITELIST.map((item, i) => {
-            const tabId = `dev::${i}`;
-            const isActive = tabId === state.activeServiceTabId;
-            return `
-              <button type="button" class="service-item ${isActive ? "active" : ""}"
-                data-tab-id="${tabId}"
-                onclick="openDevTab(${i})"
-                title="${item.url}">
-                <span class="status-dot" style="background-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.2)"></span>
-                <span>⚡ ${item.label}</span>
-              </button>
-            `;
-          }).join("")}
-        </div>
-      </div>
-    `;
-  }
+  // === DEV WHITELIST RENDERING — Uncomment jika DEV_WHITELIST aktif ===
+  // if (DEV_WHITELIST.length > 0) {
+  //   html += `
+  //     <div class="mt-3 pt-3 border-t border-gray-200">
+  //       <div class="sidebar-section-label" style="padding-left:4px">Dev Shortcuts</div>
+  //       <div class="px-1">
+  //         ${DEV_WHITELIST.map((item, i) => {
+  //           const tabId = `dev::${i}`;
+  //           const isActive = tabId === state.activeServiceTabId;
+  //           return `
+  //             <button type="button" class="service-item ${isActive ? "active" : ""}"
+  //               data-tab-id="${tabId}"
+  //               onclick="openDevTab(${i})"
+  //               title="${item.url}">
+  //               <span class="status-dot" style="background-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.2)"></span>
+  //               <span>⚡ ${item.label}</span>
+  //             </button>
+  //           `;
+  //         }).join("")}
+  //       </div>
+  //     </div>
+  //   `;
+  // }
   // === END DEV WHITELIST RENDERING ===
 
   serviceTabsContainer.innerHTML = html;
@@ -95,41 +96,41 @@ function renderSidebar() {
   }
 }
 
-// === DEV WHITELIST — Tab handler ===
-window.openDevTab = function (index) {
-  const item = DEV_WHITELIST[index];
-  if (!item) return;
-
-  const tabId = `dev::${index}`;
-  if (state.serviceTabs.has(tabId)) {
-    switchToServiceTab(tabId);
-    return;
-  }
-
-  const webview = document.createElement("webview");
-  webview.setAttribute("nodeintegration", "false");
-  webview.setAttribute("plugins", "false");
-  webview.setAttribute("disablewebsecurity", "false");
-  webview.setAttribute("allowpopups", "true");
-  webview.setAttribute("webpreferences", "contextIsolation=true, nativeWindowOpen=true");
-  webview.style.width = "100%";
-  webview.style.height = "100%";
-  webview.classList.add("hidden");
-  webview.__originalUrl = item.url; // Simpan URL asli untuk recovery dari error
-  webviewContainer.appendChild(webview);
-
-  state.serviceTabs.set(tabId, {
-    id: tabId,
-    identityId: "dev",
-    serviceName: item.label,
-    webview,
-    title: item.label,
-  });
-
-  attachWebviewListeners(webview, true, "dev", item.label);
-  webview.src = item.url;
-  switchToServiceTab(tabId);
-};
+// === DEV WHITELIST — Tab handler — Uncomment jika DEV_WHITELIST aktif ===
+// window.openDevTab = function (index) {
+//   const item = DEV_WHITELIST[index];
+//   if (!item) return;
+//
+//   const tabId = `dev::${index}`;
+//   if (state.serviceTabs.has(tabId)) {
+//     switchToServiceTab(tabId);
+//     return;
+//   }
+//
+//   const webview = document.createElement("webview");
+//   webview.setAttribute("nodeintegration", "false");
+//   webview.setAttribute("plugins", "false");
+//   webview.setAttribute("disablewebsecurity", "false");
+//   webview.setAttribute("allowpopups", "true");
+//   webview.setAttribute("webpreferences", "contextIsolation=true, nativeWindowOpen=true");
+//   webview.style.width = "100%";
+//   webview.style.height = "100%";
+//   webview.classList.add("hidden");
+//   webview.__originalUrl = item.url;
+//   webviewContainer.appendChild(webview);
+//
+//   state.serviceTabs.set(tabId, {
+//     id: tabId,
+//     identityId: "dev",
+//     serviceName: item.label,
+//     webview,
+//     title: item.label,
+//   });
+//
+//   attachWebviewListeners(webview, true, "dev", item.label);
+//   webview.src = item.url;
+//   switchToServiceTab(tabId);
+// };
 // === END DEV WHITELIST ===
 
 window.toggleIdentity = function (identityId) {
