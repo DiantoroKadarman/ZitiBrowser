@@ -16,7 +16,7 @@ import {
 } from "./auth.js";
 import { setupBrowserListeners } from "./browser-tabs.js";
 import { setupLogModal } from "./log-modal.js";
-import { isUrlInActiveServiceDomain, reloadActiveWebview } from "./webview.js";
+import { isUrlInActiveServiceDomain, reloadActiveWebview, injectBlockedNavigationPage } from "./webview.js";
 import { setupThemeToggle } from "./theme-toggle.js";
 
 const authScreen = document.getElementById("auth-screen");
@@ -104,6 +104,20 @@ async function init() {
       }
     } else {
       console.warn("[BLOCKED] window.open diblokir:", url);
+      // Tampilkan halaman peringatan di webview aktif
+      if (state.activeServiceTabId) {
+        const tab = state.serviceTabs.get(state.activeServiceTabId);
+        if (tab?.webview) injectBlockedNavigationPage(tab.webview, url);
+      }
+    }
+  });
+
+  // will-navigate — tampilkan peringatan saat navigasi ke luar whitelist diblokir
+  window.electronAPI.onNavigationBlocked((url) => {
+    console.warn("[BLOCKED] Navigasi in-page diblokir:", url);
+    if (state.activeServiceTabId) {
+      const tab = state.serviceTabs.get(state.activeServiceTabId);
+      if (tab?.webview) injectBlockedNavigationPage(tab.webview, url);
     }
   });
 

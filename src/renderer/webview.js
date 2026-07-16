@@ -404,6 +404,185 @@ function reloadActiveWebview() {
   }
 }
 
+/**
+ * Inject halaman peringatan ke webview saat navigasi ke URL di luar whitelist diblokir.
+ * Menampilkan pesan yang jelas bahwa URL tersebut tidak diizinkan oleh kebijakan whitelist.
+ */
+function injectBlockedNavigationPage(webview, blockedUrl) {
+  const safeUrl = blockedUrl
+    ? blockedUrl.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    : "—";
+
+  let hostname = "—";
+  try {
+    hostname = new URL(blockedUrl).hostname;
+  } catch (_) {}
+
+  // Deteksi theme saat ini dari parent document
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+
+  const blockedHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navigasi Diblokir - Ziti Browser</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: ${isDark ? "#1a1a1a" : "#f9fafb"};
+      color: ${isDark ? "#e5e5e5" : "#111827"};
+      font-family: 'Inter', -apple-system, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 520px;
+      padding: 2.5rem;
+      text-align: center;
+    }
+    .shield-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: ${isDark
+        ? "linear-gradient(135deg, #7c2d12 0%, #9a3412 100%)"
+        : "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)"};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      box-shadow: ${isDark
+        ? "0 4px 20px rgba(234, 88, 12, 0.2)"
+        : "0 4px 20px rgba(245, 158, 11, 0.15)"};
+    }
+    .shield-icon svg {
+      width: 32px;
+      height: 32px;
+      color: ${isDark ? "#fb923c" : "#d97706"};
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: ${isDark ? "#f5f5f5" : "#111827"};
+    }
+    .subtitle {
+      font-size: 0.875rem;
+      color: ${isDark ? "#a3a3a3" : "#6b7280"};
+      margin-bottom: 1.25rem;
+    }
+    .url-box {
+      background: ${isDark ? "#2a2a2a" : "#f3f4f6"};
+      border: 1px solid ${isDark ? "#404040" : "#e5e7eb"};
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+    }
+    .url-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: ${isDark ? "#737373" : "#9ca3af"};
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    .url-value {
+      font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
+      color: ${isDark ? "#ef4444" : "#dc2626"};
+      font-size: 0.8rem;
+      word-break: break-all;
+      font-weight: 500;
+    }
+    .info-box {
+      background: ${isDark ? "#1e293b" : "#eff6ff"};
+      border: 1px solid ${isDark ? "#1e3a5f" : "#bfdbfe"};
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0;
+      text-align: left;
+    }
+    .info-box p {
+      font-size: 0.8rem;
+      color: ${isDark ? "#93c5fd" : "#1d4ed8"};
+      line-height: 1.5;
+    }
+    .info-box strong {
+      color: ${isDark ? "#60a5fa" : "#1e40af"};
+    }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+      padding: 0.6rem 1.5rem;
+      border-radius: 8px;
+      border: 1px solid ${isDark ? "#404040" : "#d1d5db"};
+      background: ${isDark ? "#2a2a2a" : "#ffffff"};
+      color: ${isDark ? "#e5e5e5" : "#374151"};
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: inherit;
+    }
+    .back-btn:hover {
+      background: ${isDark ? "#3a3a3a" : "#f3f4f6"};
+      border-color: ${isDark ? "#525252" : "#9ca3af"};
+    }
+    .back-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="shield-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <line x1="9" y1="9" x2="15" y2="15"/>
+        <line x1="15" y1="9" x2="9" y2="15"/>
+      </svg>
+    </div>
+    <h1>Navigasi Diblokir</h1>
+    <p class="subtitle">Alamat tujuan tidak termasuk dalam daftar service yang diizinkan</p>
+
+    <div class="url-box">
+      <div class="url-label">URL yang diblokir</div>
+      <div class="url-value">${safeUrl}</div>
+    </div>
+
+    <div class="info-box">
+      <p>
+        <strong>Kebijakan Whitelist Aktif</strong><br>
+        Ziti Browser hanya mengizinkan navigasi ke service yang terdaftar di jaringan Ziti Anda.
+        Domain <strong>${hostname}</strong> tidak termasuk dalam daftar service yang diizinkan.
+      </p>
+    </div>
+
+    <button class="back-btn" onclick="history.back()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+      Kembali
+    </button>
+  </div>
+</body>
+</html>`;
+
+  webview.__hasInjectedError = true;
+  webview
+    .loadURL(`data:text/html,${encodeURIComponent(blockedHtml)}`)
+    .catch(() => {});
+}
+
 export {
   createWebviewForTab,
   showWebview,
@@ -415,6 +594,7 @@ export {
   injectWebviewErrorPage,
   mapErrorCodeToMessage,
   isUrlInActiveServiceDomain,
+  injectBlockedNavigationPage,
   reloadActiveWebview,
   webviewContainer,
 };

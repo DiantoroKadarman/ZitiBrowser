@@ -33,6 +33,14 @@ async function refreshActiveIdentities() {
     state.enabledIdentityIds = new Set(
       state.activeIdentities.map((id) => id.identity_id)
     );
+
+    // --- Sinkronkan whitelist ke main process ---
+    const allServices = state.activeIdentities
+      .flatMap((id) => id.services || [])
+      .filter((s) => typeof s === "string" && s.trim());
+    const uniqueServices = [...new Set(allServices)];
+    window.electronAPI.updateWhitelistServices(uniqueServices);
+    console.log("[WHITELIST] Sinkronisasi services:", uniqueServices);
   } catch (e) {
     console.warn("Gagal refresh identitas dari proxy:", e);
   }

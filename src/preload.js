@@ -53,6 +53,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.off("app:window-open-intercepted", handler);
   },
 
+  // === Whitelist Navigation Control ===
+  updateWhitelistServices: (serviceList) =>
+    ipcRenderer.send("whitelist:update-services", serviceList),
+  onNavigationBlocked: (callback) => {
+    const handler = (_, url) => callback(url);
+    ipcRenderer.on("app:navigation-blocked", handler);
+    return () => ipcRenderer.off("app:navigation-blocked", handler);
+  },
+
   // === Keyboard Shortcut: Ctrl+R / F5 → reload active webview only ===
   onReloadActiveWebview: (callback) => {
     const handler = () => callback();

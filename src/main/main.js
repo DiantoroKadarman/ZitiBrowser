@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { setupLogFile, startProxy, stopProxy, setMainWindow } from "./proxy.js";
@@ -6,6 +6,19 @@ import { registerAllHandlers } from "./ipc-handlers.js";
 import { setupSSLHandler } from "./ssl.js";
 
 let mainWindow;
+
+// --- Strict Whitelist: Daftar hostname service yang diizinkan ---
+const allowedServiceHosts = new Set();
+
+function updateAllowedServices(serviceList) {
+  allowedServiceHosts.clear();
+  for (const host of serviceList) {
+    if (typeof host === "string" && host.trim()) {
+      allowedServiceHosts.add(host.trim().toLowerCase());
+    }
+  }
+  console.log(`[WHITELIST] Updated allowed services: [${[...allowedServiceHosts].join(", ")}]`);
+}
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -63,11 +76,43 @@ if (started) {
 
 app.on("web-contents-created", (event, contents) => {
   if (contents.getType() === "webview") {
+    // --- Blokir window.open / target="_blank" ---
     contents.setWindowOpenHandler((details) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send("app:window-open-intercepted", details.url);
       }
       return { action: "deny" };
+    });
+
+    // --- Blokir navigasi in-page ke URL di luar whitelist ---
+    contents.on("will-navigate", (navEvent, url) => {
+      try {
+        const urlObj = new URL(url);
+        const hostname = urlObj.hostname.toLowerCase();
+
+        // Izinkan data: URL (error page internal)
+        if (urlObj.protocol === "data:") return;
+
+        // Izinkan jika hostname ada dalam whitelist service
+        if (allowedServiceHosts.has(hostname)) return;
+
+        // Jika whitelist kosong (belum login), izinkan semua
+        // (proxy tetap akan memblokir di network level)
+        if (allowedServiceHosts.size === 0) return;
+
+        // --- BLOKIR navigasi ---
+        navEvent.preventDefault();
+        console.log(`[WHITELIST BLOCKED] Navigasi diblokir: ${url}`);
+
+        // Kirim notifikasi ke renderer agar menampilkan halaman peringatan
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("app:navigation-blocked", url);
+        }
+      } catch (e) {
+        // URL tidak valid — blokir untuk keamanan
+        navEvent.preventDefault();
+        console.warn(`[WHITELIST] URL tidak valid diblokir: ${url}`);
+      }
     });
   }
 });
@@ -78,6 +123,11 @@ app.whenReady().then(() => {
   createWindow();
   registerAllHandlers(mainWindow);
   setupSSLHandler(app);
+
+  // --- IPC: Renderer mengirim daftar service yang diizinkan ---
+  ipcMain.on("whitelist:update-services", (event, serviceList) => {
+    updateAllowedServices(serviceList);
+  });
 });
 
 app.on("activate", () => {
